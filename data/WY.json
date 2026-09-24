@@ -2,17 +2,6 @@
   "single_costs": [
     {
       "type": "single",
-      "date": "2016-09-22",
-      "total_cost": 377870,
-      "single_income": 37026,
-      "cost_to_income": "10.21",
-      "home_price": 234331,
-      "mortgage_rate": "3.48",
-      "observed": true,
-      "cpi": 241.176
-    },
-    {
-      "type": "single",
       "date": "2016-09-29",
       "total_cost": 374627,
       "single_income": 37061,
@@ -5783,20 +5772,26 @@
         "rate_estimated": false,
         "income_estimated": true
       }
+    },
+    {
+      "type": "single",
+      "date": "2026-09-24",
+      "total_cost": 896594,
+      "single_income": 54571,
+      "cost_to_income": "16.43",
+      "home_price": 373216,
+      "mortgage_rate": "7.03",
+      "observed": false,
+      "cpi": 334.131,
+      "estimated": true,
+      "estimation_details": {
+        "price_estimated": true,
+        "rate_estimated": false,
+        "income_estimated": true
+      }
     }
   ],
   "household_costs": [
-    {
-      "type": "household",
-      "date": "2016-09-22",
-      "total_cost": 377870,
-      "household_income": 51837,
-      "cost_to_income": "7.29",
-      "home_price": 234331,
-      "mortgage_rate": "3.48",
-      "observed": true,
-      "cpi": 241.176
-    },
     {
       "type": "household",
       "date": "2016-09-29",
@@ -11569,29 +11564,46 @@
         "rate_estimated": false,
         "income_estimated": true
       }
+    },
+    {
+      "type": "household",
+      "date": "2026-09-24",
+      "total_cost": 896594,
+      "household_income": 76400,
+      "cost_to_income": "11.74",
+      "home_price": 373216,
+      "mortgage_rate": "7.03",
+      "observed": false,
+      "cpi": 334.131,
+      "estimated": true,
+      "estimation_details": {
+        "price_estimated": true,
+        "rate_estimated": false,
+        "income_estimated": true
+      }
     }
   ],
   "metadata": {
-    "generated_at": "2026-09-17T16:11:07-04:00",
+    "generated_at": "2026-09-24T16:22:07-04:00",
     "state": "WY",
     "state_name": "Wyoming",
     "frequency": "weekly_thursday_aligned",
     "date_range": {
-      "start": "2016-09-22",
-      "end": "2026-09-17",
+      "start": "2016-09-29",
+      "end": "2026-09-24",
       "last_actual_home_price": "2026-08-01",
       "last_actual_income": "2026-08-01"
     },
     "counts": {
       "total": 522,
-      "actual": 515,
-      "estimated": 7,
-      "income_estimated": 7
+      "actual": 514,
+      "estimated": 8,
+      "income_estimated": 8
     },
     "series_quality": {
-      "observed": 120,
+      "observed": 119,
       "interpolated": 399,
-      "extrapolated": 3
+      "extrapolated": 4
     },
     "data_sources": {
       "bls_series": "CES0500000011",
