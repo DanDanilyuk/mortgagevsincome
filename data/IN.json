@@ -2,24 +2,13 @@
   "single_costs": [
     {
       "type": "single",
-      "date": "2016-09-29",
+      "date": "2016-10-06",
       "total_cost": 212874,
-      "single_income": 38525,
-      "cost_to_income": "5.53",
+      "single_income": 38543,
+      "cost_to_income": "5.52",
       "home_price": 133002,
       "mortgage_rate": "3.42",
       "observed": true,
-      "cpi": 241.176
-    },
-    {
-      "type": "single",
-      "date": "2016-10-06",
-      "total_cost": 213059,
-      "single_income": 38543,
-      "cost_to_income": "5.53",
-      "home_price": 133118,
-      "mortgage_rate": "3.42",
-      "observed": false,
       "cpi": 241.741
     },
     {
@@ -36,10 +25,10 @@
     {
       "type": "single",
       "date": "2016-10-20",
-      "total_cost": 216251,
+      "total_cost": 216252,
       "single_income": 38538,
       "cost_to_income": "5.61",
-      "home_price": 133440,
+      "home_price": 133441,
       "mortgage_rate": "3.52",
       "observed": false,
       "cpi": 241.741
@@ -47,10 +36,10 @@
     {
       "type": "single",
       "date": "2016-10-27",
-      "total_cost": 215171,
+      "total_cost": 215172,
       "single_income": 38532,
       "cost_to_income": "5.58",
-      "home_price": 133602,
+      "home_price": 133603,
       "mortgage_rate": "3.47",
       "observed": false,
       "cpi": 241.741
@@ -5789,29 +5778,35 @@
         "rate_estimated": false,
         "income_estimated": true
       }
+    },
+    {
+      "type": "single",
+      "date": "2026-10-01",
+      "total_cost": 642456,
+      "single_income": 56800,
+      "cost_to_income": "11.31",
+      "home_price": 260825,
+      "mortgage_rate": "7.28",
+      "observed": false,
+      "cpi": 334.131,
+      "estimated": true,
+      "estimation_details": {
+        "price_estimated": true,
+        "rate_estimated": false,
+        "income_estimated": true
+      }
     }
   ],
   "household_costs": [
     {
       "type": "household",
-      "date": "2016-09-29",
+      "date": "2016-10-06",
       "total_cost": 212874,
-      "household_income": 53935,
-      "cost_to_income": "3.95",
+      "household_income": 53960,
+      "cost_to_income": "3.94",
       "home_price": 133002,
       "mortgage_rate": "3.42",
       "observed": true,
-      "cpi": 241.176
-    },
-    {
-      "type": "household",
-      "date": "2016-10-06",
-      "total_cost": 213059,
-      "household_income": 53960,
-      "cost_to_income": "3.95",
-      "home_price": 133118,
-      "mortgage_rate": "3.42",
-      "observed": false,
       "cpi": 241.741
     },
     {
@@ -5828,10 +5823,10 @@
     {
       "type": "household",
       "date": "2016-10-20",
-      "total_cost": 216251,
+      "total_cost": 216252,
       "household_income": 53953,
       "cost_to_income": "4.01",
-      "home_price": 133440,
+      "home_price": 133441,
       "mortgage_rate": "3.52",
       "observed": false,
       "cpi": 241.741
@@ -5839,10 +5834,10 @@
     {
       "type": "household",
       "date": "2016-10-27",
-      "total_cost": 215171,
+      "total_cost": 215172,
       "household_income": 53945,
       "cost_to_income": "3.99",
-      "home_price": 133602,
+      "home_price": 133603,
       "mortgage_rate": "3.47",
       "observed": false,
       "cpi": 241.741
@@ -11581,29 +11576,46 @@
         "rate_estimated": false,
         "income_estimated": true
       }
+    },
+    {
+      "type": "household",
+      "date": "2026-10-01",
+      "total_cost": 642456,
+      "household_income": 79521,
+      "cost_to_income": "8.08",
+      "home_price": 260825,
+      "mortgage_rate": "7.28",
+      "observed": false,
+      "cpi": 334.131,
+      "estimated": true,
+      "estimation_details": {
+        "price_estimated": true,
+        "rate_estimated": false,
+        "income_estimated": true
+      }
     }
   ],
   "metadata": {
-    "generated_at": "2026-09-24T16:21:35-04:00",
+    "generated_at": "2026-10-01T17:45:08-04:00",
     "state": "IN",
     "state_name": "Indiana",
     "frequency": "weekly_thursday_aligned",
     "date_range": {
-      "start": "2016-09-29",
-      "end": "2026-09-24",
+      "start": "2016-10-06",
+      "end": "2026-10-01",
       "last_actual_home_price": "2026-08-01",
       "last_actual_income": "2026-08-01"
     },
     "counts": {
       "total": 522,
-      "actual": 514,
-      "estimated": 8,
-      "income_estimated": 8
+      "actual": 513,
+      "estimated": 9,
+      "income_estimated": 9
     },
     "series_quality": {
       "observed": 119,
-      "interpolated": 399,
-      "extrapolated": 4
+      "interpolated": 398,
+      "extrapolated": 5
     },
     "data_sources": {
       "bls_series": "CES0500000011",

@@ -2,33 +2,22 @@
   "single_costs": [
     {
       "type": "single",
-      "date": "2016-09-29",
+      "date": "2016-10-06",
       "total_cost": 363815,
-      "single_income": 40415,
+      "single_income": 40434,
       "cost_to_income": "9.00",
       "home_price": 227309,
       "mortgage_rate": "3.42",
       "observed": true,
-      "cpi": 241.176
-    },
-    {
-      "type": "single",
-      "date": "2016-10-06",
-      "total_cost": 363673,
-      "single_income": 40434,
-      "cost_to_income": "8.99",
-      "home_price": 227221,
-      "mortgage_rate": "3.42",
-      "observed": false,
       "cpi": 241.741
     },
     {
       "type": "single",
       "date": "2016-10-13",
-      "total_cost": 365790,
+      "total_cost": 365861,
       "single_income": 40435,
       "cost_to_income": "9.05",
-      "home_price": 227123,
+      "home_price": 227167,
       "mortgage_rate": "3.47",
       "observed": false,
       "cpi": 241.741
@@ -36,10 +25,10 @@
     {
       "type": "single",
       "date": "2016-10-20",
-      "total_cost": 367949,
+      "total_cost": 368008,
       "single_income": 40428,
       "cost_to_income": "9.10",
-      "home_price": 227047,
+      "home_price": 227083,
       "mortgage_rate": "3.52",
       "observed": false,
       "cpi": 241.741
@@ -47,10 +36,10 @@
     {
       "type": "single",
       "date": "2016-10-27",
-      "total_cost": 365567,
+      "total_cost": 365593,
       "single_income": 40422,
       "cost_to_income": "9.04",
-      "home_price": 226984,
+      "home_price": 227000,
       "mortgage_rate": "3.47",
       "observed": false,
       "cpi": 241.741
@@ -5789,38 +5778,44 @@
         "rate_estimated": false,
         "income_estimated": true
       }
+    },
+    {
+      "type": "single",
+      "date": "2026-10-01",
+      "total_cost": 722424,
+      "single_income": 59587,
+      "cost_to_income": "12.12",
+      "home_price": 293291,
+      "mortgage_rate": "7.28",
+      "observed": false,
+      "cpi": 334.131,
+      "estimated": true,
+      "estimation_details": {
+        "price_estimated": true,
+        "rate_estimated": false,
+        "income_estimated": true
+      }
     }
   ],
   "household_costs": [
     {
       "type": "household",
-      "date": "2016-09-29",
+      "date": "2016-10-06",
       "total_cost": 363815,
-      "household_income": 56581,
+      "household_income": 56607,
       "cost_to_income": "6.43",
       "home_price": 227309,
       "mortgage_rate": "3.42",
       "observed": true,
-      "cpi": 241.176
-    },
-    {
-      "type": "household",
-      "date": "2016-10-06",
-      "total_cost": 363673,
-      "household_income": 56607,
-      "cost_to_income": "6.42",
-      "home_price": 227221,
-      "mortgage_rate": "3.42",
-      "observed": false,
       "cpi": 241.741
     },
     {
       "type": "household",
       "date": "2016-10-13",
-      "total_cost": 365790,
+      "total_cost": 365861,
       "household_income": 56610,
       "cost_to_income": "6.46",
-      "home_price": 227123,
+      "home_price": 227167,
       "mortgage_rate": "3.47",
       "observed": false,
       "cpi": 241.741
@@ -5828,10 +5823,10 @@
     {
       "type": "household",
       "date": "2016-10-20",
-      "total_cost": 367949,
+      "total_cost": 368008,
       "household_income": 56600,
       "cost_to_income": "6.50",
-      "home_price": 227047,
+      "home_price": 227083,
       "mortgage_rate": "3.52",
       "observed": false,
       "cpi": 241.741
@@ -5839,10 +5834,10 @@
     {
       "type": "household",
       "date": "2016-10-27",
-      "total_cost": 365567,
+      "total_cost": 365593,
       "household_income": 56591,
       "cost_to_income": "6.46",
-      "home_price": 226984,
+      "home_price": 227000,
       "mortgage_rate": "3.47",
       "observed": false,
       "cpi": 241.741
@@ -11581,29 +11576,46 @@
         "rate_estimated": false,
         "income_estimated": true
       }
+    },
+    {
+      "type": "household",
+      "date": "2026-10-01",
+      "total_cost": 722424,
+      "household_income": 83422,
+      "cost_to_income": "8.66",
+      "home_price": 293291,
+      "mortgage_rate": "7.28",
+      "observed": false,
+      "cpi": 334.131,
+      "estimated": true,
+      "estimation_details": {
+        "price_estimated": true,
+        "rate_estimated": false,
+        "income_estimated": true
+      }
     }
   ],
   "metadata": {
-    "generated_at": "2026-09-24T16:21:51-04:00",
+    "generated_at": "2026-10-01T17:45:30-04:00",
     "state": "ND",
     "state_name": "North Dakota",
     "frequency": "weekly_thursday_aligned",
     "date_range": {
-      "start": "2016-09-29",
-      "end": "2026-09-24",
+      "start": "2016-10-06",
+      "end": "2026-10-01",
       "last_actual_home_price": "2026-08-01",
       "last_actual_income": "2026-08-01"
     },
     "counts": {
       "total": 522,
-      "actual": 514,
-      "estimated": 8,
-      "income_estimated": 8
+      "actual": 513,
+      "estimated": 9,
+      "income_estimated": 9
     },
     "series_quality": {
       "observed": 119,
-      "interpolated": 399,
-      "extrapolated": 4
+      "interpolated": 398,
+      "extrapolated": 5
     },
     "data_sources": {
       "bls_series": "CES0500000011",
