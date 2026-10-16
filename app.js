@@ -8,15 +8,35 @@ import {
   formatMoney,
   formatSignedMoney,
   formatDate,
+  formatAxisDate,
   toIsoLocal,
   formatRelativeTime,
 } from './modules/format.js';
-import { HOUSING_EVENTS } from './modules/events.js';
+import {
+  HOUSING_EVENTS,
+  eventLabelIndex,
+  eventsAtIndex,
+  assignLabelRows,
+} from './modules/events.js';
 import { parseUrlParams, anyFilterNonDefault } from './modules/urlState.js';
-import { rangeEdgeIndices, clampedRangeIndices } from './modules/range.js';
+import { rangeEdgeIndices, clampedRangeIndices, clampIndexRange } from './modules/range.js';
 import { computeDelta } from './modules/deltas.js';
 import { isOverlayVisible, buildOverlayData, shouldIncludeLegendItem } from './modules/overlay.js';
 import { qualityLabel, estimationBadge } from './modules/quality.js';
+import { viewVisibility, viewAfterLegendToggle } from './modules/view.js';
+import { filterStates } from './modules/stateSearch.js';
+
+const DEFAULT_TITLE = document.title;
+const isEmbed = new URLSearchParams(window.location.search).get('embed') === '1';
+
+// localStorage throws (not just returns null) when storage is blocked - e.g. this page
+// embedded in a third-party iframe with partitioned storage disabled.
+const readStoredTheme = () => {
+  try { return localStorage.getItem('theme'); } catch { return null; }
+};
+const storeTheme = theme => {
+  try { localStorage.setItem('theme', theme); } catch { /* storage blocked: theme still applies */ }
+};
 
 // Encapsulated Application State
 const state = {
@@ -34,6 +54,9 @@ const state = {
     currentState: 'ALL',
     currentRange: '2y',
     currentView: 'both',
+    // {start, end} indices after a wheel zoom / drag pan; null means "whatever currentRange
+    // selects". Lets the CSV + table export what is actually on screen.
+    visibleRange: null,
   };
 
 
@@ -70,6 +93,8 @@ const state = {
     dataTableWrapper: document.getElementById('dataTableWrapper'),
     dataTableBody: document.getElementById('dataTableBody'),
     dataTableCaption: document.getElementById('dataTableCaption'),
+    zoomTip: document.getElementById('zoomTip'),
+    comboInput: document.getElementById('stateComboboxInput'),
   };
 
   let fetchToken = 0;
@@ -96,6 +121,9 @@ const state = {
     params.set('range', state.currentRange);
     params.set('view', state.currentView);
     params.set('yaxis', state.yAxisZero ? 'zero' : 'auto');
+    // Keep embed mode in the URL: replaceState rewrites the iframe's own address, so dropping
+    // it here would bring back the full page chrome on any reload (including the SW update reload).
+    if (isEmbed) params.set('embed', '1');
 
     const url = `${window.location.pathname}?${params.toString()}`;
     history.replaceState(null, '', url);
@@ -179,10 +207,7 @@ const state = {
         const { ctx } = chart;
         ctx.save();
         ctx.globalCompositeOperation = 'destination-over';
-        ctx.fillStyle =
-          getComputedStyle(document.documentElement)
-            .getPropertyValue('--bg-container')
-            .trim() || '#ffffff';
+        ctx.fillStyle = state.chartColors.bgContainer || '#ffffff';
         ctx.fillRect(0, 0, chart.width, chart.height);
         ctx.restore();
       },
@@ -193,17 +218,25 @@ const state = {
         if (!state.showEvents || !state.chartData) return;
         const { ctx, chartArea, scales: { x } } = chart;
         const labels = chart.data.labels;
+        // Canvas fonts can't resolve CSS custom properties, so use the family string
+        // captured by readChartTokens.
         ctx.save();
+        ctx.font = `600 10px ${state.chartColors.fontMono || 'monospace'}`;
+
+        const visible = [];
         HOUSING_EVENTS.forEach(evt => {
-          // Skip events that predate every data point; otherwise findIndex(d => d >= evt.date)
-          // would snap the marker onto index 0 (the first label).
-          if (!labels.length || evt.date < labels[0]) return;
-          const exact = labels.indexOf(evt.date);
-          const idx = exact !== -1 ? exact : labels.findIndex(d => d >= evt.date);
+          const idx = eventLabelIndex(labels, evt.date);
           if (idx === -1) return;
           const xPos = x.getPixelForValue(idx);
           if (xPos < chartArea.left || xPos > chartArea.right) return;
+          const half = ctx.measureText(evt.short).width / 2;
+          // Keep the label inside the plot area even when the guide sits near an edge.
+          const center = Math.min(Math.max(xPos, chartArea.left + half), chartArea.right - half);
+          visible.push({ evt, xPos, center, left: center - half, right: center + half });
+        });
+        const rows = assignLabelRows(visible);
 
+        visible.forEach(({ evt, xPos, center }, i) => {
           ctx.strokeStyle = state.chartColors.textColor || '#94a3b8';
           ctx.globalAlpha = 0.35;
           ctx.lineWidth = 1;
@@ -215,11 +248,10 @@ const state = {
           ctx.setLineDash([]);
 
           ctx.globalAlpha = 1;
-          ctx.font = '600 10px var(--font-mono), monospace';
           ctx.fillStyle = state.chartColors.amber || '#d97706';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'top';
-          ctx.fillText(evt.short, xPos, chartArea.top + 4);
+          ctx.fillText(evt.short, center, chartArea.top + 4 + rows[i] * 13);
         });
         ctx.restore();
       },
@@ -386,7 +418,50 @@ const state = {
       bgContainer: style.getPropertyValue('--bg-container').trim() || '#ffffff',
       tooltipBg: style.getPropertyValue('--tooltip-bg').trim() || 'rgba(17, 24, 39, 0.95)',
       tooltipText: style.getPropertyValue('--tooltip-text').trim() || '#f1f5f9',
+      fontMono: style.getPropertyValue('--font-mono').trim() || 'monospace',
     };
+  };
+
+  // Phone-width charts get a smaller legend and fewer x ticks so the plot keeps its height.
+  const COMPACT_CHART_WIDTH = 520;
+  const applyResponsiveChartOptions = (chart, width) => {
+    const compact = width < COMPACT_CHART_WIDTH;
+    const legendLabels = chart.options.plugins.legend.labels;
+    legendLabels.font = { size: compact ? 11 : 14, weight: 'bold' };
+    legendLabels.boxWidth = compact ? 8 : 40;
+    chart.options.scales.x.ticks.maxTicksLimit = compact ? 5 : 12;
+  };
+
+  // Legend clicks drive the same view state as the Compare Both / Single / Dual buttons, so the
+  // buttons, info cards and URL can't drift from what the chart shows. Dataset 2 (U.S. overlay)
+  // toggles the overlay preference instead.
+  const handleLegendClick = (_e, item) => {
+    if (item.datasetIndex === 2) {
+      state.showNationalOverlay = !state.showNationalOverlay;
+      applyNationalOverlay();
+      return;
+    }
+    const next = viewAfterLegendToggle(state.currentView, item.datasetIndex);
+    if (!next || next === state.currentView) return;
+    state.currentView = next;
+    applyCurrentView();
+    syncUrlParams();
+  };
+
+  // After a wheel zoom or drag pan the range buttons no longer describe the view, so clear them
+  // and remember the on-screen window for the CSV / table.
+  const handleManualZoom = ({ chart }) => {
+    if (!state.chartData) return;
+    const items = state.chartData.single_costs;
+    const { min, max } = chart.scales.x;
+    // The wheel callback is debounced (~250ms), so it can land after a range button click that
+    // followed a pinch. If the chart already shows exactly that range, keep the button lit.
+    const { startIndex, endIndex } = rangeEdgeIndices(
+      items, state.currentRange, state.minDate, state.maxDate,
+    );
+    if (min === startIndex && max === (endIndex !== -1 ? endIndex : items.length - 1)) return;
+    clearDateButtons();
+    state.visibleRange = clampIndexRange(min, max, items.length);
   };
 
   const initChart = () => {
@@ -417,16 +492,12 @@ const state = {
             pointRadius: 0,
             pointHoverRadius: 8,
             segment: {
-              borderDash: ctx => {
-                const d = state.chartData.single_costs[ctx.p1DataIndex];
-                return d?.estimated || d?.interpolated ? [8, 4] : [];
-              },
-              borderColor: ctx => {
-                const d = state.chartData.single_costs[ctx.p1DataIndex];
-                return d?.estimated || d?.interpolated
+              borderDash: ctx =>
+                state.chartData.single_costs[ctx.p1DataIndex]?.estimated ? [8, 4] : [],
+              borderColor: ctx =>
+                state.chartData.single_costs[ctx.p1DataIndex]?.estimated
                   ? `${state.chartColors.primary}80`
-                  : state.chartColors.primary;
-              },
+                  : state.chartColors.primary,
             },
           },
           {
@@ -439,20 +510,16 @@ const state = {
             pointRadius: 0,
             pointHoverRadius: 8,
             segment: {
-              borderDash: ctx => {
-                const d = state.chartData.household_costs[ctx.p1DataIndex];
-                return d?.estimated || d?.interpolated ? [8, 4] : [];
-              },
-              borderColor: ctx => {
-                const d = state.chartData.household_costs[ctx.p1DataIndex];
-                return d?.estimated || d?.interpolated
+              borderDash: ctx =>
+                state.chartData.household_costs[ctx.p1DataIndex]?.estimated ? [8, 4] : [],
+              borderColor: ctx =>
+                state.chartData.household_costs[ctx.p1DataIndex]?.estimated
                   ? `${state.chartColors.secondary}80`
-                  : state.chartColors.secondary;
-              },
+                  : state.chartColors.secondary,
             },
           },
           {
-            label: 'U.S. Single (compare)',
+            label: 'U.S. Single Earner',
             data: nationalOverlayData(state.chartData.single_costs.length),
             borderColor: state.chartColors.textColor || '#94a3b8',
             backgroundColor: 'transparent',
@@ -472,6 +539,7 @@ const state = {
         animation: false,
         transitions: { active: { animation: { duration: 0 } } },
         interaction: { mode: 'index', intersect: false },
+        onResize: (chart, size) => applyResponsiveChartOptions(chart, size.width),
         onClick: (e, elements, chart) => {
           let index = -1;
           if (elements.length > 0) index = elements[0].index;
@@ -494,6 +562,7 @@ const state = {
         },
         plugins: {
           legend: {
+            onClick: handleLegendClick,
             labels: {
               color: textColor,
               font: { size: 14, weight: 'bold' },
@@ -501,7 +570,6 @@ const state = {
               filter: item => shouldIncludeLegendItem(
                 item.datasetIndex,
                 state.currentState,
-                state.showNationalOverlay,
                 state.nationalCache,
               ),
             },
@@ -510,48 +578,66 @@ const state = {
             backgroundColor: state.chartColors.tooltipBg,
             titleColor: state.chartColors.tooltipText,
             bodyColor: state.chartColors.tooltipText,
+            footerColor: state.chartColors.tooltipText,
             padding: 15,
             callbacks: {
               title: ctx => {
                 const d = state.chartData.single_costs[ctx[0].dataIndex];
-                let title = `Date: ${ctx[0].label}`;
-                if (d.estimated) title += ' (Estimated)';
-                else if (d.interpolated) title += ' (Interpolated)';
-                return title;
+                return `${formatDate(d.date)}${d.estimated ? ' (Estimated)' : ''}`;
               },
               afterTitle: ctx => {
                 const d = state.chartData.single_costs[ctx[0].dataIndex];
                 return `\nHome Price: ${formatMoney(d.home_price)}\nMortgage Rate: ${d.mortgage_rate}%\nTotal Cost: ${formatMoney(d.total_cost)}`;
               },
               label: ctx => {
+                // The U.S. overlay only carries a ratio (from the national file), not this
+                // state's income - don't report the state's numbers under the U.S. label.
+                if (ctx.datasetIndex === 2) {
+                  return `${ctx.dataset.label}: Ratio ${ctx.parsed.y.toFixed(2)}x`;
+                }
                 const isSingle = ctx.datasetIndex === 0;
                 const d = isSingle
                   ? state.chartData.single_costs[ctx.dataIndex]
                   : state.chartData.household_costs[ctx.dataIndex];
                 const income = isSingle ? d.single_income : d.household_income;
-                return `${ctx.dataset.label}: Multiplier ${d.cost_to_income}x (Income: ${formatMoney(income)})`;
+                return `${ctx.dataset.label}: Ratio ${d.cost_to_income}x (Income: ${formatMoney(income)})`;
               },
+              footer: ctx =>
+                state.showEvents
+                  ? eventsAtIndex(ctx[0].chart.data.labels, ctx[0].dataIndex).map(evt => evt.label)
+                  : [],
             },
           },
           zoom: {
             zoom: {
-              wheel: { enabled: true, speed: 0.1 },
+              // Plain wheel scrolls the page; Ctrl + wheel (also what a trackpad pinch sends)
+              // zooms. Without the modifier the chart traps page scrolling under the cursor.
+              wheel: { enabled: true, speed: 0.1, modifierKey: 'ctrl' },
               pinch: { enabled: true },
               mode: 'x',
-              onZoomComplete: clearDateButtons,
+              onZoomComplete: handleManualZoom,
             },
             pan: {
               enabled: true,
               mode: 'x',
               threshold: 10,
-              onPanComplete: clearDateButtons,
+              onPanComplete: handleManualZoom,
             },
             limits: { x: { min: 'original', max: 'original' } },
           },
         },
         scales: {
           x: {
-            ticks: { color: textColor, maxTicksLimit: 12 },
+            ticks: {
+              color: textColor,
+              maxTicksLimit: 12,
+              maxRotation: 0,
+              autoSkipPadding: 16,
+              // `this` is the x scale: format by how many weekly points are on screen.
+              callback(value) {
+                return formatAxisDate(this.getLabelForValue(value), this.max - this.min);
+              },
+            },
             grid: { display: false },
           },
           y: {
@@ -575,9 +661,21 @@ const state = {
       ],
     });
 
-    const chartContainer = document.querySelector('.chart-container');
+    // Hammer (chartjs-plugin-zoom's touch layer) sets touch-action: none on the canvas, which
+    // stops a phone user from scrolling the page while their finger is on the chart. pan-y hands
+    // vertical swipes back to the browser; horizontal drags and pinches still reach Hammer.
+    // Hammer only writes this once, at plugin start.
+    state.chartInstance.canvas.style.touchAction = 'pan-y';
+    applyResponsiveChartOptions(state.chartInstance, state.chartInstance.width);
+
+    const chartContainer = dom.chartContainer;
     if (chartContainer && chartContainer.tabIndex !== 0) {
       chartContainer.tabIndex = 0;
+      chartContainer.setAttribute('role', 'group');
+      chartContainer.setAttribute(
+        'aria-label',
+        'Price-to-income chart. Left and Right arrow keys step through dates; Home and End jump to the first and latest.',
+      );
     }
 
     updateInfoCards(state.activePointIndex);
@@ -624,6 +722,7 @@ const state = {
 
   const setDateRange = range => {
     state.currentRange = range;
+    state.visibleRange = null;
 
     const items = state.chartData.single_costs;
     const { startIndex, endIndex } = rangeEdgeIndices(
@@ -648,9 +747,8 @@ const state = {
 
   const applyCurrentView = () => {
     const btnId = VIEW_TO_BTN[state.currentView] || 'btnBoth';
-    const showSingle = state.currentView !== 'household';
-    const showHousehold = state.currentView !== 'single';
-    updateLineVisibility(showSingle, showHousehold, btnId);
+    const { single, household } = viewVisibility(state.currentView);
+    updateLineVisibility(single, household, btnId);
   };
 
   const updateLineVisibility = (showSingle, showHousehold, btnId) => {
@@ -681,14 +779,38 @@ const state = {
     // In table view the chart container is hidden (display:none), which collapses the canvas to
     // 0x0 and yields a blank PNG. Un-hide + resize to restore the backing buffer, snapshot, then
     // re-hide - all synchronous, so the browser never paints the intermediate chart (no flicker).
+    const chart = state.chartInstance;
     const tableActive = dom.dataTableWrapper && !dom.dataTableWrapper.hidden;
     if (tableActive) {
       dom.chartContainer.hidden = false;
-      state.chartInstance.resize();
+      chart.resize();
     }
+    // A shared PNG should say what it shows: stamp a title + source line for the snapshot only.
+    const range = computeRangeIndices();
+    const rows = state.chartData.single_costs;
+    const color = state.chartColors.textColor;
+    chart.options.plugins.title = {
+      display: true,
+      text: `${STATE_NAMES[state.currentState] || state.currentState} · Mortgage vs Income`,
+      color,
+      font: { size: 16, weight: 'bold' },
+      padding: { top: 4, bottom: 2 },
+    };
+    chart.options.plugins.subtitle = {
+      display: true,
+      text: `Price-to-income ratio, ${formatDate(rows[range.start].date)} – ${formatDate(rows[range.end].date)} · mortgagevsincome.com`,
+      color,
+      padding: { bottom: 8 },
+    };
+    chart.update('none');
+    const image = chart.toBase64Image();
+    chart.options.plugins.title = { display: false };
+    chart.options.plugins.subtitle = { display: false };
+    chart.update('none');
+
     const link = document.createElement('a');
-    link.download = `mortgage-vs-income-${state.currentState}-${new Date().toISOString().split('T')[0]}.png`;
-    link.href = state.chartInstance.toBase64Image();
+    link.download = `mortgage-vs-income-${state.currentState}-${toIsoLocal(new Date())}.png`;
+    link.href = image;
     link.click();
     if (tableActive) {
       dom.chartContainer.hidden = true;
@@ -734,7 +856,8 @@ const state = {
     link.download = `mortgage-vs-income-${state.currentState}-${toIsoLocal(new Date())}.csv`;
     link.href = url;
     link.click();
-    URL.revokeObjectURL(url);
+    // Revoking synchronously can cancel the download in Safari/Firefox; let it start first.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const setYAxisLabel = () => {
@@ -744,6 +867,7 @@ const state = {
 
   const computeRangeIndices = () => {
     if (!state.chartData) return null;
+    if (state.visibleRange) return state.visibleRange;
     return clampedRangeIndices(
       state.chartData.single_costs, state.currentRange, state.minDate, state.maxDate,
     );
@@ -817,9 +941,9 @@ const state = {
         const intensity = Math.round(((s.latest_ratio_single - min) / span) * 80) + 10;
         // Solid fallback first; the color-mix assignment is ignored on browsers
         // that don't support it (e.g. iOS 16.0-16.3), leaving the fallback in place.
+        // --heat / --heat-text are tuned per theme so the text clears 4.5:1 at every intensity.
         btn.style.background = 'var(--bg-card)';
-        btn.style.background = `color-mix(in srgb, var(--accent-amber) ${intensity}%, var(--bg-card))`;
-        if (intensity > 55) btn.style.color = 'var(--text-on-dark)';
+        btn.style.background = `color-mix(in srgb, var(--heat) ${intensity}%, var(--bg-card))`;
         const code = document.createElement('span');
         code.className = 'state-tile-code';
         code.textContent = s.state;
@@ -854,13 +978,14 @@ const state = {
   };
 
   const setupStateCombobox = () => {
-    const input = document.getElementById('stateComboboxInput');
+    const input = dom.comboInput;
     const list = document.getElementById('stateComboboxList');
     if (!input || !list || !dom.stateSelect) return;
 
     const items = Array.from(dom.stateSelect.options).map(opt => ({
       code: opt.value,
       name: opt.textContent.trim(),
+      aliases: opt.value === 'ALL' ? ['us', 'usa', 'united states', 'national'] : [],
     }));
     let filtered = items.slice();
     let activeIdx = -1;
@@ -870,10 +995,7 @@ const state = {
     setInputToCurrent();
 
     const renderList = filter => {
-      const q = filter.trim().toLowerCase();
-      filtered = q
-        ? items.filter(it => it.name.toLowerCase().includes(q) || it.code.toLowerCase().includes(q))
-        : items.slice();
+      filtered = filterStates(items, filter);
       // APG: aria-selected marks the COMMITTED value option (not the keyboard-highlighted
       // one - that's conveyed via aria-activedescendant + the .active class in setActive).
       const selectedCode = dom.stateSelect.value;
@@ -946,8 +1068,14 @@ const state = {
         if (filtered.length) setActive(Math.max(activeIdx - 1, 0));
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        if (activeIdx >= 0) commit(filtered[activeIdx].code);
-        else if (filtered.length === 1) commit(filtered[0].code);
+        if (activeIdx >= 0 && !list.hidden) {
+          commit(filtered[activeIdx].code);
+        } else {
+          // No highlighted option: take the best match for what's typed ("ne" -> Nebraska,
+          // "texas" -> Texas). Untouched input holds the current state's name, so this is a no-op.
+          const best = filterStates(items, input.value)[0];
+          if (best) commit(best.code);
+        }
       } else if (e.key === 'Escape') {
         closeList();
         setInputToCurrent();
@@ -956,16 +1084,28 @@ const state = {
       }
     });
 
-    list.addEventListener('mousedown', e => {
-      const li = e.target.closest('li');
-      if (li) commit(li.dataset.code);
+    // Re-open on click when the input is already focused (e.g. right after a commit), selecting
+    // the text like the focus handler so typing replaces the committed name.
+    input.addEventListener('click', () => {
+      if (list.hidden) {
+        input.select();
+        renderList('');
+        openList();
+      }
     });
 
-    document.addEventListener('click', e => {
-      if (!input.contains(e.target) && !list.contains(e.target)) {
-        closeList();
-        setInputToCurrent();
-      }
+    // Tabbing or clicking away closes the popup and restores the committed state's name.
+    input.addEventListener('blur', () => {
+      closeList();
+      setInputToCurrent();
+    });
+
+    list.addEventListener('mousedown', e => {
+      // Keep focus in the input so the blur handler doesn't close the list mid-click
+      // (or when dragging the list's scrollbar).
+      e.preventDefault();
+      const li = e.target.closest('li');
+      if (li) commit(li.dataset.code);
     });
 
     dom.stateSelect.addEventListener('change', setInputToCurrent);
@@ -986,6 +1126,8 @@ const state = {
       dom.btnToggleTable.setAttribute('aria-pressed', 'true');
       dom.btnToggleTableLabel.textContent = 'View as Chart';
     }
+    // The zoom/pan/arrow-key tip only applies to the chart.
+    if (dom.zoomTip) dom.zoomTip.hidden = !showingTable;
   };
 
   const toggleYAxis = () => {
@@ -1064,10 +1206,20 @@ const state = {
     const latest = state.chartData && state.chartData.single_costs
       ? state.chartData.single_costs[state.chartData.single_costs.length - 1]
       : null;
-    dom.headerEyebrow.textContent = latest
-      ? `${label} · ${latest.cost_to_income}x`
-      : label;
+    dom.headerEyebrow.textContent = label;
+    if (latest) {
+      // Own span so the eyebrow's text-transform: uppercase doesn't turn "12.8x" into "12.8X".
+      const ratio = document.createElement('span');
+      ratio.className = 'header-eyebrow-ratio';
+      ratio.textContent = `${latest.cost_to_income}x`;
+      dom.headerEyebrow.append(' · ', ratio);
+    }
+    document.title = stateCode === 'ALL' ? DEFAULT_TITLE : `${name} - ${DEFAULT_TITLE}`;
   };
+
+  // Errors whose message is written for site visitors. Anything else (TypeError from a dropped
+  // connection, etc.) gets a generic message instead of e.g. "Failed to fetch".
+  const userError = message => Object.assign(new Error(message), { userFacing: true });
 
   // Bootstrapping
   const loadData = async stateCode => {
@@ -1094,31 +1246,41 @@ const state = {
       mainContent.classList.add('is-loading');
     }
 
+    const stateName = STATE_NAMES[stateCode] || stateCode;
     try {
       const url = getDataUrl(stateCode);
       const response = await fetch(url, { signal: controller.signal });
       if (!response.ok) {
-        if (stateCode !== 'ALL') {
-          throw new Error(
-            `Data for ${STATE_NAMES[stateCode]} is not yet available. Run the data script first.`,
-          );
-        }
-        throw new Error('Failed to load data file. Run the Ruby script first.');
+        throw userError(
+          response.status === 404
+            ? `Data for ${stateName} isn't available right now.`
+            : `Couldn't load data for ${stateName} (server error ${response.status}).`,
+        );
       }
 
       let json;
       try {
         json = await response.json();
-      } catch {
-        throw new Error(
-          `Data file for ${STATE_NAMES[stateCode] || stateCode} is not valid JSON. It may be truncated or corrupted.`,
-        );
+      } catch (bodyError) {
+        // An abort (timeout or superseding load) mid-read must reach the AbortError handling
+        // below, not be reported as a damaged file.
+        if (controller.signal.aborted) throw bodyError;
+        throw userError(`The data file for ${stateName} looks damaged. Please try again shortly.`);
+      }
+      if (
+        !Array.isArray(json?.single_costs) || !json.single_costs.length ||
+        !Array.isArray(json.household_costs) ||
+        json.household_costs.length !== json.single_costs.length
+      ) {
+        throw userError(`The data file for ${stateName} is incomplete. Please try again shortly.`);
       }
       if (myToken !== fetchToken) return;
 
       // Load succeeded and is still the latest request: commit the new state now.
       state.currentState = stateCode;
       state.chartData = json;
+      // The national file doubles as the overlay source - no need to fetch it again later.
+      if (stateCode === 'ALL') state.nationalCache = json;
       state.firstEstimatedIndex = state.chartData.single_costs.findIndex(
         i => i.estimated || i.interpolated,
       );
@@ -1157,6 +1319,11 @@ const state = {
         initChart();
       }
       syncUrlParams();
+      // Programmatic switches (Reset Filters, the ranking grid) set the native select without the
+      // combobox seeing it, so mirror the committed state into the desktop picker here.
+      if (dom.comboInput && document.activeElement !== dom.comboInput) {
+        dom.comboInput.value = STATE_NAMES[stateCode] || stateCode;
+      }
       // Sync the ranking-grid ring now that state.currentState holds the committed state.
       if (highlightStateGrid) highlightStateGrid();
       // Fire the national overlay fetch after the main chart is up (non-blocking).
@@ -1172,8 +1339,7 @@ const state = {
       // the native <select>, and the desktop combobox don't claim data we never rendered.
       state.currentState = prevState;
       if (dom.stateSelect.value !== prevState) dom.stateSelect.value = prevState;
-      const comboInput = document.getElementById('stateComboboxInput');
-      if (comboInput) comboInput.value = STATE_NAMES[prevState] || prevState || 'U.S.A';
+      if (dom.comboInput) dom.comboInput.value = STATE_NAMES[prevState] || prevState || 'U.S.A';
       // Failed switch reverted to prevState: move the ring back so it never sits on a state
       // we never rendered.
       if (highlightStateGrid) highlightStateGrid();
@@ -1184,7 +1350,11 @@ const state = {
         return;
       }
       console.error(error);
-      renderRetry(stateCode, isSwitch, error.message);
+      renderRetry(
+        stateCode,
+        isSwitch,
+        error.userFacing ? error.message : "Couldn't load data - check your connection and try again.",
+      );
     } finally {
       clearTimeout(timeoutId);
       if (myToken === fetchToken) mainContent.classList.remove('is-loading');
@@ -1212,7 +1382,6 @@ const state = {
   // Listeners bindings
   document.addEventListener('DOMContentLoaded', () => {
     // Embed mode strips header/footer/methodology so the chart fills the iframe.
-    const isEmbed = new URLSearchParams(window.location.search).get('embed') === '1';
     if (isEmbed) {
       document.body.classList.add('is-embed');
     }
@@ -1291,15 +1460,23 @@ const state = {
     const btnCopyLink = document.getElementById('btnCopyLink');
     const btnCopyLinkLabel = document.getElementById('btnCopyLinkLabel');
     if (btnCopyLink && btnCopyLinkLabel) {
+      // Always restore to the fixed label: capturing the current text would latch "Copied!"
+      // permanently if the button is clicked again before the reset timer fires.
+      const COPY_LABEL = btnCopyLinkLabel.textContent;
+      let copyResetTimer = null;
+      const flashCopyLabel = text => {
+        btnCopyLinkLabel.textContent = text;
+        // Icon-only on phones, so also announce the outcome.
+        if (dom.chartLiveRegion) dom.chartLiveRegion.textContent = text === 'Copied!' ? 'Link copied' : text;
+        clearTimeout(copyResetTimer);
+        copyResetTimer = setTimeout(() => { btnCopyLinkLabel.textContent = COPY_LABEL; }, 1600);
+      };
       btnCopyLink.addEventListener('click', async () => {
         try {
           await navigator.clipboard.writeText(window.location.href);
-          const prev = btnCopyLinkLabel.textContent;
-          btnCopyLinkLabel.textContent = 'Copied!';
-          setTimeout(() => { btnCopyLinkLabel.textContent = prev; }, 1600);
+          flashCopyLabel('Copied!');
         } catch {
-          btnCopyLinkLabel.textContent = 'Copy failed';
-          setTimeout(() => { btnCopyLinkLabel.textContent = 'Copy Link'; }, 1600);
+          flashCopyLabel('Copy failed');
         }
       });
     }
@@ -1327,6 +1504,10 @@ const state = {
       dom.stateSelect.style.width = (measureSpan.offsetWidth + 52) + 'px';
     };
     resizeSelect();
+    // Re-measure once web fonts land (the first pass used fallback metrics) and when the
+    // select's font size changes at the mobile breakpoint.
+    if (document.fonts) document.fonts.ready.then(resizeSelect);
+    window.matchMedia('(max-width: 768px)').addEventListener('change', resizeSelect);
     dom.stateSelect.addEventListener('change', () => {
       resizeSelect();
       loadData(dom.stateSelect.value);
@@ -1369,6 +1550,11 @@ const state = {
       if (closeBtn) {
         closeBtn.addEventListener('click', () => shortcutDialog.close());
       }
+      // Native <dialog> doesn't close on a backdrop click. The dialog has no padding, so a click
+      // whose target is the dialog element itself landed on the backdrop.
+      shortcutDialog.addEventListener('click', e => {
+        if (e.target === shortcutDialog) shortcutDialog.close();
+      });
     }
 
     // Sticky mobile summary: visible only while the chart is in viewport.
@@ -1387,39 +1573,29 @@ const state = {
       }
     }
 
-    // Keyboard arrows navigation
-    document
-      .querySelector('.chart-container')
-      .addEventListener('keydown', e => {
-        if (!state.chartInstance || !state.chartData) return;
-        if (
-          e.key === 'ArrowRight' &&
-          state.activePointIndex < state.chartData.single_costs.length - 1
-        ) {
-          e.preventDefault();
-          updateInfoCards(++state.activePointIndex, true);
-          state.chartInstance.update('none');
-        } else if (e.key === 'ArrowLeft' && state.activePointIndex > 0) {
-          e.preventDefault();
-          updateInfoCards(--state.activePointIndex, true);
-          state.chartInstance.update('none');
-        }
-      });
+    // Keyboard navigation: arrows step one week, Home/End jump to the first/latest point.
+    dom.chartContainer.addEventListener('keydown', e => {
+      if (!state.chartInstance || !state.chartData) return;
+      const last = state.chartData.single_costs.length - 1;
+      let next = state.activePointIndex;
+      if (e.key === 'ArrowRight') next = Math.min(last, next + 1);
+      else if (e.key === 'ArrowLeft') next = Math.max(0, next - 1);
+      else if (e.key === 'Home') next = 0;
+      else if (e.key === 'End') next = last;
+      else return;
+      e.preventDefault();
+      if (next === state.activePointIndex) return;
+      state.activePointIndex = next;
+      updateInfoCards(next, true);
+      state.chartInstance.update('none');
+    });
 
     // Theme toggle
     const themeToggle = document.getElementById('themeToggle');
-    // Reflect the bootstrap theme (localStorage / system preference) on the toggle's pressed state.
-    themeToggle.setAttribute(
-      'aria-pressed',
-      String(document.documentElement.getAttribute('data-theme') === 'dark'),
-    );
-    themeToggle.addEventListener('click', () => {
-      const current = document.documentElement.getAttribute('data-theme');
-      const next = current === 'dark' ? 'light' : 'dark';
-      document.documentElement.setAttribute('data-theme', next);
-      themeToggle.setAttribute('aria-pressed', String(next === 'dark'));
-      localStorage.setItem('theme', next);
-
+    const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const applyTheme = theme => {
+      document.documentElement.setAttribute('data-theme', theme);
+      themeToggle.setAttribute('aria-pressed', String(theme === 'dark'));
       if (state.chartInstance) {
         const tokens = readChartTokens();
         state.chartColors = tokens;
@@ -1433,15 +1609,31 @@ const state = {
         chart.options.plugins.tooltip.backgroundColor = tokens.tooltipBg;
         chart.options.plugins.tooltip.titleColor = tokens.tooltipText;
         chart.options.plugins.tooltip.bodyColor = tokens.tooltipText;
+        chart.options.plugins.tooltip.footerColor = tokens.tooltipText;
 
         const ds = chart.data.datasets;
         ds[0].borderColor = tokens.primary;
         ds[0].backgroundColor = `${tokens.primary}20`;
         ds[1].borderColor = tokens.secondary;
         ds[1].backgroundColor = `${tokens.secondary}20`;
+        ds[2].borderColor = tokens.textColor;
 
         chart.update('none');
       }
+    };
+    // Reflect the bootstrap theme (stored choice / system preference) on the toggle's pressed state.
+    themeToggle.setAttribute(
+      'aria-pressed',
+      String(document.documentElement.getAttribute('data-theme') === 'dark'),
+    );
+    themeToggle.addEventListener('click', () => {
+      const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      applyTheme(next);
+      storeTheme(next);
+    });
+    // Follow OS light/dark switches until the visitor picks a theme explicitly.
+    darkQuery.addEventListener('change', e => {
+      if (!readStoredTheme()) applyTheme(e.matches ? 'dark' : 'light');
     });
 
     loadData(params.state);

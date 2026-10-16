@@ -42,3 +42,12 @@ export const clampedRangeIndices = (items, range, minDate, maxDate) => {
     end: endIndex === -1 ? items.length - 1 : endIndex,
   };
 };
+
+// Whole, in-bounds [start, end] indices for a zoomed/panned category-scale window, whose
+// min/max may be fractional or overshoot the data. Used so the CSV/table follow what is
+// actually on screen after a wheel zoom or drag pan rather than the last range button.
+export const clampIndexRange = (min, max, length) => {
+  const start = Math.min(Math.max(0, Math.ceil(min)), length - 1);
+  const end = Math.max(Math.min(length - 1, Math.floor(max)), start);
+  return { start, end };
+};

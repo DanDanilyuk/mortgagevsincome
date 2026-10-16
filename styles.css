@@ -40,6 +40,11 @@
   --tooltip-bg: rgba(17, 24, 39, 0.95);
   --tooltip-text: #f1f5f9;
 
+  /* State ranking grid: tile fill is color-mix(--heat N%, --bg-card), N = 10..90.
+     Paired per theme so --heat-text stays >= 5:1 against every mix. */
+  --heat: #d97706;
+  --heat-text: #0f172a;
+
   /* Radii */
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -83,6 +88,9 @@
 
     --tooltip-bg: rgba(241, 245, 249, 0.96);
     --tooltip-text: #0f172a;
+
+    --heat: #b45309;
+    --heat-text: #f8fafc;
 }
 
 /* --- Reset & Base --- */
@@ -121,6 +129,9 @@
   background: var(--bg-container);
   color: var(--text-primary);
   padding: 0;
+  /* The global margin reset strips the UA's `dialog:modal { margin: auto }`, which pinned
+     the dialog to the top-left corner. Restore the centering. */
+  margin: auto;
   max-width: 420px;
   width: calc(100% - 32px);
   font-family: var(--font-body);
@@ -224,8 +235,10 @@ body {
   }
 }
 
-/* --- Header --- */
-header {
+/* --- Header ---
+   Class-scoped, not a bare `header` selector: the shortcut dialog has its own <header>,
+   which was inheriting the dark gradient + 56px padding (and embed mode's display: none). */
+.site-header {
   background: var(--bg-header);
   padding: 56px 48px 48px;
   position: relative;
@@ -259,6 +272,10 @@ header {
   opacity: 0.9;
 }
 
+.header-eyebrow-ratio {
+  text-transform: none;
+}
+
 h1 {
   font-family: var(--font-display);
   font-size: clamp(2rem, 4vw, 3rem);
@@ -277,7 +294,7 @@ h1 .header-accent {
   font-family: var(--font-body);
   font-size: 1rem;
   font-weight: 400;
-  color: var(--text-muted);
+  color: var(--text-on-dark-muted);
   letter-spacing: 0.01em;
 }
 
@@ -354,27 +371,6 @@ h1 .header-accent {
 .error-message {
   color: var(--accent-rose);
   font-weight: 500;
-}
-
-/* --- Estimation Warning --- */
-.legend-info {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  background: var(--accent-amber-glow);
-  border: 1px solid rgba(217, 119, 6, 0.2);
-  padding: 14px 18px;
-  border-radius: var(--radius-md);
-  margin-bottom: 24px;
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
-
-.legend-icon {
-  font-size: 1.1rem;
-  flex-shrink: 0;
-  margin-top: 1px;
 }
 
 /* --- Info Cards --- */
@@ -468,6 +464,13 @@ h1 .header-accent {
   font-size: 1.15rem;
 }
 
+/* The ratio and income cards show two stacked values in Compare Both and one otherwise.
+   Reserve the two-line height so switching views (buttons or legend) doesn't shift the
+   chart below by a line - which also made a quick second legend click land in the plot. */
+.info-value-dual {
+  min-height: calc(2 * 1.15rem * 1.4);
+}
+
 .dual-value.single {
   color: var(--accent-blue);
 }
@@ -476,17 +479,20 @@ h1 .header-accent {
   color: var(--accent-purple);
 }
 
+/* Corner tab that lives entirely inside the card's top padding (14-18px), so it can't
+   overprint the label on narrow 5-up cards. */
 .estimated-badge {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 0;
+  right: 0;
   background: var(--accent-warning);
   color: #422006;
-  padding: 2px 7px;
-  border-radius: var(--radius-pill);
+  padding: 1px 8px;
+  border-radius: 0 0 0 var(--radius-sm);
   font-family: var(--font-mono);
   font-size: 0.55rem;
   font-weight: 500;
+  line-height: 1.4;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -862,7 +868,7 @@ h1 .header-accent {
 }
 
 /* --- Embed mode (when URL has ?embed=1) --- */
-body.is-embed header,
+body.is-embed .site-header,
 body.is-embed footer,
 body.is-embed .methodology,
 body.is-embed .state-grid-section,
@@ -910,7 +916,7 @@ body.is-embed .content {
   align-items: stretch;
   gap: 2px;
   text-align: center;
-  color: var(--text-primary);
+  color: var(--heat-text);
   transition: transform 0.12s var(--ease-out);
 }
 
@@ -925,19 +931,19 @@ body.is-embed .content {
 
 .state-tile-code {
   font-size: 0.72rem;
+  font-weight: 500;
   letter-spacing: 0.05em;
-  color: var(--text-muted);
 }
 
 .state-tile-ratio {
   font-size: 0.95rem;
   font-weight: 700;
-  color: var(--text-primary);
 }
 
+/* 2px offset leaves a gap so the ring still reads on the hottest (amber) tiles. */
 .state-tile[aria-current="true"] {
   outline: 2px solid var(--accent-amber);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
 
 @media (max-width: 768px) {
@@ -1009,7 +1015,7 @@ body.is-embed .content {
   padding: 24px;
   border-radius: var(--radius-md);
   margin-bottom: 12px;
-  transition: box-shadow 0.2s var(--ease-out);
+  transition: opacity 0.3s var(--ease-out), box-shadow 0.2s var(--ease-out);
 }
 
 .chart-container:focus {
@@ -1052,6 +1058,26 @@ body.is-embed .content {
   padding: 10px 0;
   letter-spacing: 0.03em;
   margin-bottom: 12px;
+}
+
+.zoom-info kbd {
+  font-family: inherit;
+  padding: 0 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+}
+
+.zoom-info .tip-touch {
+  display: none;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .zoom-info .tip-pointer {
+    display: none;
+  }
+  .zoom-info .tip-touch {
+    display: inline;
+  }
 }
 
 /* --- Collapsible sections (methodology + state-grid) --- */
@@ -1191,7 +1217,7 @@ footer a:hover {
 }
 
 @media (max-width: 768px) {
-  header {
+  .site-header {
     padding: 36px 24px 32px;
   }
 
@@ -1229,6 +1255,7 @@ footer a:hover {
 
   .estimated-badge {
     font-size: 0.625rem;
+    line-height: 1.2;
   }
 
   .chart-container {
@@ -1297,7 +1324,7 @@ footer a:hover {
 }
 
 @media (max-width: 480px) {
-  header {
+  .site-header {
     padding: 28px 16px 24px;
   }
 
@@ -1309,11 +1336,6 @@ footer a:hover {
     grid-template-columns: 1fr;
   }
 
-  .info-card:has(.estimated-badge) .info-label,
-  .info-card:has(.estimated-badge) .info-value {
-    padding-right: 56px;
-  }
-
   h1 {
     font-size: 1.5rem;
   }
@@ -1323,6 +1345,27 @@ footer a:hover {
     padding: 8px;
   }
 
+  /* Seven 44px icon buttons don't fit a 390px phone with the old gaps, so they wrapped onto
+     three rows. Split the row evenly instead (about 42px each at 375px wide). */
+  .date-range-controls {
+    padding: 10px;
+  }
+
+  .date-range-buttons,
+  .action-buttons {
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+
+  .date-range-buttons .btn,
+  .action-buttons .btn-action {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
   footer {
     padding: 20px 16px;
   }
@@ -1330,8 +1373,10 @@ footer a:hover {
 
 /* --- Animations --- */
 @media (prefers-reduced-motion: no-preference) {
+  /* backwards, not both: a retained final keyframe would override the .is-loading dim
+     and the .info-card:hover lift for the life of the page. */
   .info-card {
-    animation: fadeUp 0.4s var(--ease-out) both;
+    animation: fadeUp 0.4s var(--ease-out) backwards;
   }
   .info-card:nth-child(1) { animation-delay: 0.05s; }
   .info-card:nth-child(2) { animation-delay: 0.1s; }
@@ -1340,7 +1385,7 @@ footer a:hover {
   .info-card:nth-child(5) { animation-delay: 0.25s; }
 
   .chart-container {
-    animation: fadeUp 0.5s var(--ease-out) 0.3s both;
+    animation: fadeUp 0.5s var(--ease-out) 0.3s backwards;
   }
 }
 

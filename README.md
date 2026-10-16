@@ -11,6 +11,8 @@ The dashboard charts the **price-to-income ratio** - the total cost of a 30-year
 - **Single earner** and **dual income (1.4x)** household views
 - State-level breakdowns using state-specific income multipliers and home prices
 - Interactive chart with zoom, pan, date range selection, and data point inspection
+- All-states ranking grid, a data-table view, and CSV / PNG export of the visible range
+- Shareable URLs for every view, plus `?embed=1` for iframe embedding
 - Dark mode with system preference detection
 
 ## Data Sources
@@ -32,7 +34,7 @@ The dashboard charts the **price-to-income ratio** - the total cost of a 30-year
 
 ### Prerequisites
 
-- Ruby (3.0+)
+- Ruby 4.0 (exact version pinned in `.ruby-version`; CI reads the same file), then `bundle install`
 - A [BLS API key](https://www.bls.gov/developers/)
 - A [FRED API key](https://fred.stlouisfed.org/docs/api/fred/)
 
@@ -48,7 +50,18 @@ To generate data for a single state:
 ruby weekly_case_shiller.rb --bls-api-key YOUR_BLS_KEY --fred-api-key YOUR_FRED_KEY --state CA
 ```
 
-Then open `index.html` in a browser.
+Then serve the folder over HTTP and open http://localhost:8000 (opening `index.html` directly from disk won't work: browsers block ES modules and `fetch()` on `file://` URLs):
+
+```sh
+python3 -m http.server 8000
+```
+
+### Tests
+
+```sh
+bundle exec ruby test/all.rb        # Ruby pipeline tests
+node --test test/js/*.test.js       # JS module tests (no npm install needed)
+```
 
 ## License
 

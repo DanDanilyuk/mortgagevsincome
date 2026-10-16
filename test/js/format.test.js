@@ -4,6 +4,7 @@ import {
   formatMoney,
   formatSignedMoney,
   formatDate,
+  formatAxisDate,
   toIsoLocal,
   formatRelativeTime,
 } from '../../modules/format.js';
@@ -31,6 +32,24 @@ describe('formatSignedMoney', () => {
 
   it('uses + for zero', () => {
     assert.equal(formatSignedMoney(0), '+$0');
+  });
+
+  it('uses + when a small negative rounds to zero', () => {
+    assert.equal(formatSignedMoney(-0.4), '+$0');
+  });
+});
+
+describe('formatAxisDate', () => {
+  it('keeps the day for short windows', () => {
+    assert.equal(formatAxisDate('2025-10-16', 52), 'Oct 16, 2025');
+  });
+
+  it('collapses to month + year for long windows', () => {
+    assert.equal(formatAxisDate('2025-10-16', 104), 'Oct 2025');
+  });
+
+  it('does not roll back a month on the 1st (no UTC parse)', () => {
+    assert.equal(formatAxisDate('2025-01-01', 260), 'Jan 2025');
   });
 });
 

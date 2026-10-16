@@ -1,8 +1,10 @@
-export const formatMoney = val => '$' + Math.round(val).toLocaleString();
+// Pinned to en-US: the figures are U.S. dollars, so a de-DE visitor shouldn't see "$761.715".
+export const formatMoney = val => '$' + Math.round(val).toLocaleString('en-US');
 
+// Sign follows the rounded value so -0.4 renders "+$0", not "-$0".
 export const formatSignedMoney = val => {
-  const abs = Math.abs(Math.round(val));
-  return `${val < 0 ? '-' : '+'}$${abs.toLocaleString()}`;
+  const rounded = Math.round(val);
+  return `${rounded < 0 ? '-' : '+'}$${Math.abs(rounded).toLocaleString('en-US')}`;
 };
 
 export const formatDate = dateStr => {
@@ -12,6 +14,14 @@ export const formatDate = dateStr => {
     month: 'short',
     day: 'numeric',
   });
+};
+
+// X-axis tick label. Long windows (more than ~70 weekly points) only need month + year;
+// shorter ones keep the day so neighbouring ticks stay distinct.
+export const formatAxisDate = (dateStr, spanPoints) => {
+  if (spanPoints <= 70) return formatDate(dateStr);
+  const [y, m] = dateStr.split('-');
+  return new Date(y, m - 1, 1).toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
 };
 
 export const toIsoLocal = date => {

@@ -4,6 +4,7 @@ import {
   rangeWindow,
   rangeEdgeIndices,
   clampedRangeIndices,
+  clampIndexRange,
 } from '../../modules/range.js';
 
 // A daily-ish series spanning 2018-01-01 .. 2025-01-01 (sparse: year boundaries).
@@ -91,5 +92,23 @@ describe('clampedRangeIndices', () => {
       start: 0,
       end: items.length - 1,
     });
+  });
+});
+
+describe('clampIndexRange', () => {
+  it('passes through an in-bounds integer window', () => {
+    assert.deepEqual(clampIndexRange(10, 20, 100), { start: 10, end: 20 });
+  });
+
+  it('rounds a fractional window inward', () => {
+    assert.deepEqual(clampIndexRange(9.4, 20.6, 100), { start: 10, end: 20 });
+  });
+
+  it('clamps a window that overshoots the data', () => {
+    assert.deepEqual(clampIndexRange(-5, 140, 100), { start: 0, end: 99 });
+  });
+
+  it('never returns end before start', () => {
+    assert.deepEqual(clampIndexRange(50.2, 50.8, 100), { start: 51, end: 51 });
   });
 });

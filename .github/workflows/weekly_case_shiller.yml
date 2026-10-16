@@ -18,7 +18,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Skip if already generated within last 6 hours
         id: skip_check
@@ -49,7 +49,7 @@ jobs:
         if: steps.skip_check.outputs.skip != 'true'
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.4.4'
+          ruby-version: '.ruby-version'
           bundler-cache: true
 
       - name: Run unit tests
@@ -104,9 +104,14 @@ jobs:
             puts "✅ All JSON files are fresh (within 8 days)"
           '
 
+      - name: Determine data week
+        if: steps.skip_check.outputs.skip != 'true'
+        id: week
+        run: echo "date=$(TZ=America/New_York date +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
       - name: Commit and push updated JSON
         if: steps.skip_check.outputs.skip != 'true'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: 'Update Case-Shiller data for week of ${{ github.run_id }}'
+          commit_message: 'Update affordability data for week of ${{ steps.week.outputs.date }}'
           file_pattern: '*.json data/*.json'

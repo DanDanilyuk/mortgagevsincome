@@ -7,10 +7,12 @@ export const isOverlayVisible = (currentState, showOverlay, nationalCache) =>
   currentState !== 'ALL' && showOverlay && !!nationalCache;
 
 // Chart.js lists every dataset in the legend, including hidden ones. Dataset
-// index 2 is the U.S. overlay - keep it out of the legend unless it would
-// actually render (a single-state view with cache loaded).
-export const shouldIncludeLegendItem = (datasetIndex, currentState, showOverlay, nationalCache) =>
-  datasetIndex !== 2 || isOverlayVisible(currentState, showOverlay, nationalCache);
+// index 2 is the U.S. overlay - keep it out of the legend unless it can render
+// (a single-state view with cache loaded). Deliberately ignores the user's
+// show/hide toggle: a toggled-off overlay stays listed (struck through) so a
+// second legend click can bring it back.
+export const shouldIncludeLegendItem = (datasetIndex, currentState, nationalCache) =>
+  datasetIndex !== 2 || (currentState !== 'ALL' && !!nationalCache);
 
 // Build the overlay series aligned to the displayed state's dates. Dates missing
 // from the national cache fall through as null (Chart.js spanGaps bridges them).

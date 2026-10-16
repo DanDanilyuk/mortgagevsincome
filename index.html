@@ -104,8 +104,12 @@
     <!-- Theme (prevent flash of wrong theme) -->
     <script>
       (function() {
-        var t = localStorage.getItem('theme');
-        if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        var t = null;
+        // localStorage throws when storage is blocked (e.g. a sandboxed third-party embed).
+        try { t = localStorage.getItem('theme'); } catch (e) {}
+        if (t !== 'light' && t !== 'dark') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
         document.documentElement.setAttribute('data-theme', t);
       })();
     </script>
@@ -115,14 +119,12 @@
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preload" as="style"
-        href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,700;1,8..60,400&display=swap">
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,700;1,8..60,400&display=swap" rel="stylesheet">
 
-    <!-- Chart.js & Plugins -->
-    <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <!-- Chart.js & Plugins (keep these URLs in sync with CDN_ASSETS in sw.js) -->
+    <script defer crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script defer crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+    <script defer crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 
     <!-- Application Logic -->
     <script type="module" src="app.js"></script>
@@ -136,7 +138,7 @@
         <span class="sticky-summary-ratio" id="stickySummaryRatio">-</span>
     </div>
     <div class="container">
-        <header>
+        <header class="site-header">
             <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode" title="Toggle dark mode" aria-pressed="false">
                 <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
@@ -183,7 +185,7 @@
                     <div class="info-card" id="multiplierCard" data-accent="amber"
                         title="Total cost of a 30-year mortgage (principal + interest) divided by annual earnings. Higher means less affordable - a ratio of 10x means a home costs ten years of income.">
                         <div class="info-label">Price-to-Income Ratio</div>
-                        <div class="info-value" id="currentMultiplier">-</div>
+                        <div class="info-value info-value-dual" id="currentMultiplier">-</div>
                         <div class="info-delta" id="multiplierDelta" aria-hidden="true"></div>
                     </div>
                     <div class="info-card" id="priceCard" data-accent="blue"
@@ -195,7 +197,7 @@
                     <div class="info-card" id="incomeCard" data-accent="emerald"
                         title="BLS Average Weekly Earnings scaled by a state-specific QCEW multiplier and annualized. Dual income view applies a 1.4x household multiplier.">
                         <div class="info-label">Avg. Annual Earnings</div>
-                        <div class="info-value" id="annualIncome">-</div>
+                        <div class="info-value info-value-dual" id="annualIncome">-</div>
                         <div class="info-delta" id="incomeDelta" aria-hidden="true"></div>
                     </div>
                     <div class="info-card" id="rateCard" data-accent="rose"
@@ -363,21 +365,22 @@
                 </div>
 
                 <div class="zoom-info" id="zoomTip">
-                    Scroll to zoom, drag to pan, click any point for details, or use arrow keys to step through dates.
+                    <span class="tip-pointer">Pinch or Ctrl + scroll to zoom, drag to pan, click any point for details, or use arrow keys to step through dates. Press <kbd>?</kbd> for shortcuts.</span>
+                    <span class="tip-touch">Pinch to zoom, drag sideways to pan, tap any point for details.</span>
                 </div>
 
                 <details class="state-grid-section">
                     <summary><h2 id="stateGridHeading">All states, ranked</h2></summary>
                     <div class="state-grid-content">
-                        <p class="state-grid-sub">Latest price-to-income ratio, single earner. Darker = less affordable. Click a state to load.</p>
-                        <div class="state-grid" id="stateGrid" role="list" aria-label="States sorted by current price-to-income ratio"></div>
+                        <p class="state-grid-sub">Latest price-to-income ratio, single earner, least affordable first. Stronger amber = less affordable. Click a state to load it.</p>
+                        <div class="state-grid" id="stateGrid" role="group" aria-label="States sorted by current price-to-income ratio"></div>
                     </div>
                 </details>
 
                 <details class="methodology">
                     <summary><h2>How It Works</h2></summary>
                     <div class="methodology-content">
-                        <p><strong>Price-to-Income Ratio:</strong> The total cost of a 30-year mortgage (principal + interest) divided by annual earnings. A higher ratio means housing is less affordable.</p>
+                        <p><strong>Price-to-Income Ratio:</strong> The total cost of a 30-year mortgage (principal + interest) divided by annual earnings. A higher ratio means housing is less affordable. The calculation finances the full home price at that week's rate; down payment, taxes, and insurance are not included.</p>
                         <div class="data-sources">
                             <h3>Data Sources</h3>
                             <ul>
@@ -389,7 +392,7 @@
                         <p><strong>Dual Income:</strong> Estimated at 1.4× single-earner income, reflecting typical dual-income household dynamics.</p>
                         <p><strong>State-Level Data:</strong> When a state is selected, home prices reflect that state's Zillow Home Value Index (ZHVI) data sourced from FRED. Income is estimated by applying a state-specific multiplier to the national BLS average weekly earnings. This multiplier is derived from the BLS Quarterly Census of Employment and Wages (QCEW), comparing each state's private sector average weekly wage to the national average. Mortgage rates remain national regardless of state selection, using the Freddie Mac 30-year fixed rate.</p>
                         <p><strong>Multiplier Availability:</strong> When QCEW data is unavailable for a given year, the state income multiplier falls back to 1.0 (equivalent to national earnings). Each state's JSON records the source as <code>qcew_&lt;year&gt;</code>, <code>fallback_missing</code>, or <code>fallback_unavailable</code> so the provenance of the income figure is traceable.</p>
-                        <p><strong>Data Annotations:</strong> Each weekly data point is categorized as one of three types. <em>Observed</em> points combine an exact Freddie Mac mortgage-rate Thursday with home-price and income series within their measured ranges. <em>Interpolated</em> points sit between real monthly observations and use linear interpolation for the missing weeks. <em>Extrapolated</em> points extend recent trends forward when source data has not yet been published. The per-state JSON surfaces these counts under <code>metadata.series_quality</code>.</p>
+                        <p><strong>Data Annotations:</strong> Each weekly point uses that week's actual Freddie Mac mortgage rate, and is labelled by how its home price was derived. <em>Observed</em> points fall on the Thursday closest to a monthly Zillow release and use that value directly. <em>Interpolated</em> points sit between monthly releases and are filled with a smooth cubic (Hermite) curve. <em>Estimated</em> points extend the recent six-month price trend past the latest release; because BLS earnings are published about a month behind, the most recent weeks also project income forward, and their cards and table rows are flagged as estimated. The per-state JSON surfaces these counts under <code>metadata.series_quality</code>.</p>
                         <p><strong>Embed this chart:</strong> Append <code>?embed=1</code> to any URL to load a chrome-free view suitable for an iframe. Combine with the existing <code>state</code>, <code>range</code>, <code>view</code>, and <code>yaxis</code> parameters. Example: <code>?embed=1&amp;state=ca&amp;range=5y</code>.</p>
                     </div>
                 </details>
@@ -406,7 +409,8 @@
                     <dt><kbd>?</kbd></dt><dd>Open this help</dd>
                     <dt><kbd>Esc</kbd></dt><dd>Close any overlay</dd>
                     <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Step through dates (focus the chart first)</dd>
-                    <dt><kbd>Scroll</kbd></dt><dd>Zoom the chart in or out</dd>
+                    <dt><kbd>Home</kbd> <kbd>End</kbd></dt><dd>Jump to the first or latest date</dd>
+                    <dt><kbd>Ctrl</kbd> + <kbd>Scroll</kbd></dt><dd>Zoom the chart in or out (or pinch on a trackpad)</dd>
                     <dt><kbd>Drag</kbd></dt><dd>Pan the chart timeline</dd>
                     <dt><kbd>Click</kbd></dt><dd>Inspect any data point</dd>
                 </dl>

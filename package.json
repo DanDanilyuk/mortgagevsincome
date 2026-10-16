@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test test/js/*.test.js",
-    "lint": "oxlint app.js modules/ test/js/"
+    "lint": "oxlint app.js sw.js modules/ test/js/"
   },
   "devDependencies": {
     "oxlint": "^0.16.0"

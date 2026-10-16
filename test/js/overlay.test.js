@@ -30,23 +30,28 @@ describe('isOverlayVisible', () => {
 
 describe('shouldIncludeLegendItem', () => {
   it('always includes the single-earner series, even on ALL', () => {
-    assert.equal(shouldIncludeLegendItem(0, 'ALL', true, nationalCache), true);
+    assert.equal(shouldIncludeLegendItem(0, 'ALL', nationalCache), true);
   });
 
   it('always includes the dual-income series, even on ALL', () => {
-    assert.equal(shouldIncludeLegendItem(1, 'ALL', true, nationalCache), true);
+    assert.equal(shouldIncludeLegendItem(1, 'ALL', nationalCache), true);
   });
 
   it('excludes the U.S. overlay on the national (ALL) view', () => {
-    assert.equal(shouldIncludeLegendItem(2, 'ALL', true, nationalCache), false);
+    assert.equal(shouldIncludeLegendItem(2, 'ALL', nationalCache), false);
   });
 
   it('includes the U.S. overlay for a state once the cache is present', () => {
-    assert.equal(shouldIncludeLegendItem(2, 'CA', true, nationalCache), true);
+    assert.equal(shouldIncludeLegendItem(2, 'CA', nationalCache), true);
   });
 
   it('excludes the U.S. overlay when the cache has not loaded yet', () => {
-    assert.equal(shouldIncludeLegendItem(2, 'CA', true, null), false);
+    assert.equal(shouldIncludeLegendItem(2, 'CA', null), false);
+  });
+
+  it('keeps a toggled-off U.S. overlay in the legend so it can be re-enabled', () => {
+    assert.equal(shouldIncludeLegendItem(2, 'CA', nationalCache), true);
+    assert.equal(isOverlayVisible('CA', false, nationalCache), false);
   });
 });
 
