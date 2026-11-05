@@ -2,7 +2,14 @@ name: Weekly Case-Shiller Update
 
 on:
   schedule:
-    - cron: '5 17 * * 4'
+    # Weekly: Freddie Mac publishes the mortgage rate Thursdays at noon ET.
+    - cron: '10 12 * * 4'
+      timezone: 'America/New_York'
+    # Monthly: BLS publishes at 8:30 ET and FRED has had it by about 9:30. Zillow lands
+    # overnight mid-month. These dates vary, so check every weekday; upstream_check.rb
+    # skips the run unless FRED reports something new, which also retries a late rate.
+    - cron: '40 9 * * 1-5'
+      timezone: 'America/New_York'
   workflow_dispatch:
 
 permissions:
@@ -20,37 +27,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Skip if already generated within last 6 hours
-        id: skip_check
-        run: |
-          if [ -f weekly_case_shiller_output.json ]; then
-            generated_at=$(python3 -c "import json,sys; d=json.load(open('weekly_case_shiller_output.json')); print(d.get('metadata',{}).get('generated_at',''))" 2>/dev/null || echo "")
-            if [ -n "$generated_at" ]; then
-              gen_epoch=$(date -d "$generated_at" +%s 2>/dev/null || echo 0)
-              now_epoch=$(date +%s)
-              age=$(( now_epoch - gen_epoch ))
-              if [ "$age" -lt 21600 ]; then
-                echo "skip=true" >> "$GITHUB_OUTPUT"
-                echo "⏭️ Already generated ${age}s ago ($generated_at) - skipping"
-              else
-                echo "skip=false" >> "$GITHUB_OUTPUT"
-                echo "✅ Last run was ${age}s ago - proceeding"
-              fi
-            else
-              echo "skip=false" >> "$GITHUB_OUTPUT"
-              echo "✅ No generated_at found - proceeding"
-            fi
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-            echo "✅ No existing output - proceeding"
-          fi
-
       - name: Set up Ruby
-        if: steps.skip_check.outputs.skip != 'true'
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '.ruby-version'
           bundler-cache: true
+
+      - name: Skip unless upstream has new data
+        id: skip_check
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          FORCE_RUN: ${{ github.event_name == 'workflow_dispatch' }}
+        run: ruby upstream_check.rb
 
       - name: Run unit tests
         if: steps.skip_check.outputs.skip != 'true'
