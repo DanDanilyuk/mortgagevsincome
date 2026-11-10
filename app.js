@@ -19,12 +19,18 @@ import {
   assignLabelRows,
 } from './modules/events.js';
 import { parseUrlParams, anyFilterNonDefault } from './modules/urlState.js';
-import { rangeEdgeIndices, clampedRangeIndices, clampIndexRange } from './modules/range.js';
+import {
+  rangeEdgeIndices,
+  clampedRangeIndices,
+  windowIncludingIndex,
+  manualWindow,
+} from './modules/range.js';
 import { computeDelta } from './modules/deltas.js';
 import { isOverlayVisible, buildOverlayData, shouldIncludeLegendItem } from './modules/overlay.js';
-import { qualityLabel, estimationBadge } from './modules/quality.js';
+import { qualityLabel, estimationBadge, estimatedRegionSpan } from './modules/quality.js';
 import { viewVisibility, viewAfterLegendToggle } from './modules/view.js';
-import { filterStates } from './modules/stateSearch.js';
+import { filterStates, stepOptionIndex } from './modules/stateSearch.js';
+import { rankIntensities } from './modules/ranking.js';
 
 const DEFAULT_TITLE = document.title;
 const isEmbed = new URLSearchParams(window.location.search).get('embed') === '1';
@@ -138,18 +144,18 @@ const state = {
       beforeDraw: chart => {
         if (state.firstEstimatedIndex === -1) return;
         const { ctx, chartArea } = chart;
-        const meta = chart.getDatasetMeta(0);
-        if (!meta.data[state.firstEstimatedIndex]) return;
-
-        const x = meta.data[state.firstEstimatedIndex].x;
+        // Clipped to the plot: zoomed into the tail, the first estimated point sits far left
+        // of the y-axis; panned away, it sits right of the plot. The position comes from the
+        // scale so it holds whichever series are hidden.
+        const span = estimatedRegionSpan(
+          chart.scales.x.getPixelForValue(state.firstEstimatedIndex),
+          chartArea.left,
+          chartArea.right,
+        );
+        if (!span) return;
         ctx.save();
         ctx.fillStyle = `${state.chartColors.amber}14`;
-        ctx.fillRect(
-          x,
-          chartArea.top,
-          chartArea.right - x,
-          chartArea.bottom - chartArea.top,
-        );
+        ctx.fillRect(span.x, chartArea.top, span.width, chartArea.bottom - chartArea.top);
         ctx.restore();
       },
     },
@@ -236,22 +242,31 @@ const state = {
         });
         const rows = assignLabelRows(visible);
 
-        visible.forEach(({ evt, xPos, center }, i) => {
-          ctx.strokeStyle = state.chartColors.textColor || '#94a3b8';
-          ctx.globalAlpha = 0.35;
-          ctx.lineWidth = 1;
-          ctx.setLineDash([4, 4]);
+        // Every guide first, then the labels, so no guide is drawn across a neighbour's label.
+        ctx.strokeStyle = state.chartColors.textColor || '#94a3b8';
+        ctx.globalAlpha = 0.35;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        visible.forEach(({ xPos }) => {
           ctx.beginPath();
           ctx.moveTo(xPos, chartArea.top);
           ctx.lineTo(xPos, chartArea.bottom);
           ctx.stroke();
-          ctx.setLineDash([]);
+        });
+        ctx.setLineDash([]);
 
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        visible.forEach(({ evt, center, left, right }, i) => {
+          const y = chartArea.top + 4 + rows[i] * 13;
+          // Backing chip: the series lines (and the label's own guide) run behind the label
+          // and would otherwise strike through it.
+          ctx.globalAlpha = 0.85;
+          ctx.fillStyle = state.chartColors.bgContainer || '#ffffff';
+          ctx.fillRect(left - 3, y - 2, right - left + 6, 13);
           ctx.globalAlpha = 1;
           ctx.fillStyle = state.chartColors.amber || '#d97706';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'top';
-          ctx.fillText(evt.short, center, chartArea.top + 4 + rows[i] * 13);
+          ctx.fillText(evt.short, center, y);
         });
         ctx.restore();
       },
@@ -448,20 +463,19 @@ const state = {
     syncUrlParams();
   };
 
-  // After a wheel zoom or drag pan the range buttons no longer describe the view, so clear them
-  // and remember the on-screen window for the CSV / table.
+  // After a wheel zoom, drag pan or keyboard pan the range buttons no longer describe the view,
+  // so clear them and remember the on-screen window for the CSV / table. manualWindow is null
+  // when the chart is back on exactly the named range (zoomed fully out again on "All", stepped
+  // back to the latest point, or the ~250ms-debounced wheel callback landing after a range
+  // button click): then the button is lit again and the remembered window is dropped, instead
+  // of leaving a stale window for the exports.
   const handleManualZoom = ({ chart }) => {
     if (!state.chartData) return;
-    const items = state.chartData.single_costs;
     const { min, max } = chart.scales.x;
-    // The wheel callback is debounced (~250ms), so it can land after a range button click that
-    // followed a pinch. If the chart already shows exactly that range, keep the button lit.
-    const { startIndex, endIndex } = rangeEdgeIndices(
-      items, state.currentRange, state.minDate, state.maxDate,
+    state.visibleRange = manualWindow(
+      state.chartData.single_costs, state.currentRange, state.minDate, state.maxDate, min, max,
     );
-    if (min === startIndex && max === (endIndex !== -1 ? endIndex : items.length - 1)) return;
-    clearDateButtons();
-    state.visibleRange = clampIndexRange(min, max, items.length);
+    setActiveRangeButton(state.visibleRange ? null : state.currentRange);
   };
 
   const initChart = () => {
@@ -717,8 +731,13 @@ const state = {
   };
 
   // Event & UI Handlers
-  const clearDateButtons = () =>
-    dom.dateRangeButtons.forEach(b => b.classList.remove('active'));
+  // Lights the button for `range` and clears the rest; null clears them all (custom window).
+  const setActiveRangeButton = range =>
+    dom.dateRangeButtons.forEach(b => {
+      const on = b.dataset.range === range;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
 
   const setDateRange = range => {
     state.currentRange = range;
@@ -734,11 +753,7 @@ const state = {
         min: startIndex,
         max: endIndex !== -1 ? endIndex : items.length - 1,
       });
-      clearDateButtons();
-      const btn = document.querySelector(
-        `.date-range-buttons .btn[data-range="${range}"]`,
-      );
-      if (btn) btn.classList.add('active');
+      setActiveRangeButton(range);
     }
     if (dom.dataTableWrapper && !dom.dataTableWrapper.hidden) {
       renderDataTable();
@@ -767,9 +782,11 @@ const state = {
     state.currentView = BTN_TO_VIEW[btnId] || 'both';
 
     dom.controlsButtons.forEach(btn => {
-      btn.classList.toggle('btn-primary', btn.id === btnId);
-      btn.classList.toggle('active', btn.id === btnId);
-      btn.classList.toggle('btn-secondary', btn.id !== btnId);
+      const on = btn.id === btnId;
+      btn.classList.toggle('btn-primary', on);
+      btn.classList.toggle('active', on);
+      btn.classList.toggle('btn-secondary', !on);
+      btn.setAttribute('aria-pressed', String(on));
     });
     updateInfoCards(state.activePointIndex);
   };
@@ -863,6 +880,7 @@ const state = {
   const setYAxisLabel = () => {
     dom.btnToggleYLabel.textContent = state.yAxisZero ? 'Y-Axis: Zero' : 'Y-Axis: Auto';
     dom.btnToggleY.classList.toggle('active', state.yAxisZero);
+    dom.btnToggleY.setAttribute('aria-pressed', String(state.yAxisZero));
   };
 
   const computeRangeIndices = () => {
@@ -922,12 +940,10 @@ const state = {
         return;
       }
       items.sort((a, b) => b.latest_ratio_single - a.latest_ratio_single);
-      const min = items[items.length - 1].latest_ratio_single;
-      const max = items[0].latest_ratio_single;
-      const span = Math.max(0.001, max - min);
+      const intensities = rankIntensities(items.map(s => s.latest_ratio_single));
 
       grid.replaceChildren();
-      items.forEach(s => {
+      items.forEach((s, i) => {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'state-tile';
@@ -938,12 +954,11 @@ const state = {
           'aria-label',
           `${s.state_name}, ratio ${s.latest_ratio_single.toFixed(2)}x. Press to load.`,
         );
-        const intensity = Math.round(((s.latest_ratio_single - min) / span) * 80) + 10;
         // Solid fallback first; the color-mix assignment is ignored on browsers
         // that don't support it (e.g. iOS 16.0-16.3), leaving the fallback in place.
         // --heat / --heat-text are tuned per theme so the text clears 4.5:1 at every intensity.
         btn.style.background = 'var(--bg-card)';
-        btn.style.background = `color-mix(in srgb, var(--heat) ${intensity}%, var(--bg-card))`;
+        btn.style.background = `color-mix(in srgb, var(--heat) ${intensities[i]}%, var(--bg-card))`;
         const code = document.createElement('span');
         code.className = 'state-tile-code';
         code.textContent = s.state;
@@ -989,6 +1004,7 @@ const state = {
     }));
     let filtered = items.slice();
     let activeIdx = -1;
+    let isFiltered = false;
 
     const stateNameFor = code => STATE_NAMES[code] || code || 'U.S.A';
     const setInputToCurrent = () => { input.value = stateNameFor(dom.stateSelect.value); };
@@ -996,22 +1012,35 @@ const state = {
 
     const renderList = filter => {
       filtered = filterStates(items, filter);
+      isFiltered = filter.trim() !== '';
       // APG: aria-selected marks the COMMITTED value option (not the keyboard-highlighted
       // one - that's conveyed via aria-activedescendant + the .active class in setActive).
       const selectedCode = dom.stateSelect.value;
-      list.innerHTML = filtered
-        .map((it, i) =>
-          `<li role="option" data-code="${it.code}" id="state-combo-opt-${i}" aria-selected="${it.code === selectedCode ? 'true' : 'false'}">` +
-          `<span>${it.name}</span><span class="state-code">${it.code === 'ALL' ? 'US' : it.code}</span>` +
-          `</li>`)
-        .join('');
+      list.innerHTML = filtered.length
+        ? filtered
+          .map((it, i) =>
+            `<li role="option" data-code="${it.code}" id="state-combo-opt-${i}" aria-selected="${it.code === selectedCode ? 'true' : 'false'}">` +
+            `<span>${it.name}</span><span class="state-code">${it.code === 'ALL' ? 'US' : it.code}</span>` +
+            `</li>`)
+          .join('')
+        // Says why the popup is empty instead of leaving a blank sliver. Not selectable: the
+        // arrows and Enter work off `filtered`, and commit() ignores a row with no data-code.
+        : '<li class="state-combobox-empty" role="option" aria-disabled="true">No matching state</li>';
       activeIdx = -1;
       input.removeAttribute('aria-activedescendant');
     };
 
     const openList = () => {
+      const wasHidden = list.hidden;
       list.hidden = false;
       input.setAttribute('aria-expanded', 'true');
+      if (!wasHidden) return;
+      // Freshly opened: centre the committed state in the popup. Sets the list's own scrollTop
+      // (the list is the options' offsetParent) - scrollIntoView could move the page too.
+      const selected = list.querySelector('[aria-selected="true"]');
+      if (selected) {
+        list.scrollTop = selected.offsetTop - (list.clientHeight - selected.offsetHeight) / 2;
+      }
     };
 
     const closeList = () => {
@@ -1059,13 +1088,20 @@ const state = {
     });
 
     input.addEventListener('keydown', e => {
-      if (e.key === 'ArrowDown') {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
+        // Closed popup: open the full list first (either arrow), so the highlight and
+        // aria-activedescendant never point into a hidden list.
         if (list.hidden) { renderList(''); openList(); }
-        if (filtered.length) setActive(Math.min(activeIdx + 1, filtered.length - 1));
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        if (filtered.length) setActive(Math.max(activeIdx - 1, 0));
+        // The unfiltered list is scrolled to the committed state, so the first arrow continues
+        // from there; a typed filter starts from the top (or bottom) of its matches.
+        const anchorIdx = isFiltered
+          ? -1
+          : filtered.findIndex(it => it.code === dom.stateSelect.value);
+        const nextIdx = stepOptionIndex(
+          e.key === 'ArrowDown' ? 1 : -1, activeIdx, anchorIdx, filtered.length,
+        );
+        if (nextIdx !== -1) setActive(nextIdx);
       } else if (e.key === 'Enter') {
         e.preventDefault();
         if (activeIdx >= 0 && !list.hidden) {
@@ -1122,6 +1158,9 @@ const state = {
     } else {
       renderDataTable();
       dom.dataTableWrapper.hidden = false;
+      // Un-hiding restarts CSS animations, which replayed the delayed fadeUp entry (300ms of
+      // blank space, then a fade) on every return to the chart. The entry has had its turn.
+      dom.chartContainer.classList.add('has-entered');
       dom.chartContainer.hidden = true;
       dom.btnToggleTable.setAttribute('aria-pressed', 'true');
       dom.btnToggleTableLabel.textContent = 'View as Chart';
@@ -1180,8 +1219,23 @@ const state = {
     btn.type = 'button';
     btn.className = 'btn btn-secondary btn-small retry-btn';
     btn.textContent = 'Retry';
-    btn.addEventListener('click', () => loadData(stateCode), { once: true });
+    btn.addEventListener('click', () => {
+      // Single-use, so show that the click registered while the refetch runs.
+      btn.disabled = true;
+      btn.textContent = 'Retrying...';
+      loadData(stateCode);
+    }, { once: true });
     return btn;
+  };
+
+  // Puts the first-load spinner back when Retry follows a failed first load, so the refetch
+  // isn't hidden behind the old error message.
+  const restoreInitialSpinner = () => {
+    const lm = document.getElementById('loadingMessage');
+    if (!lm.querySelector('.error-message')) return;
+    const spinner = document.createElement('div');
+    spinner.className = 'loading-spinner';
+    lm.replaceChildren(spinner, 'Crunching the numbers...');
   };
 
   const renderRetry = (stateCode, isSwitch, message) => {
@@ -1209,10 +1263,12 @@ const state = {
     dom.headerEyebrow.textContent = label;
     if (latest) {
       // Own span so the eyebrow's text-transform: uppercase doesn't turn "12.8x" into "12.8X".
+      // The separator rides inside it (nowrap) so a long state name wraps before "· 12.8x"
+      // rather than stranding the dot at the end of the first line.
       const ratio = document.createElement('span');
       ratio.className = 'header-eyebrow-ratio';
-      ratio.textContent = `${latest.cost_to_income}x`;
-      dom.headerEyebrow.append(' · ', ratio);
+      ratio.textContent = `· ${latest.cost_to_income}x`;
+      dom.headerEyebrow.append(' ', ratio);
     }
     document.title = stateCode === 'ALL' ? DEFAULT_TITLE : `${name} - ${DEFAULT_TITLE}`;
   };
@@ -1244,6 +1300,8 @@ const state = {
 
     if (isSwitch) {
       mainContent.classList.add('is-loading');
+    } else {
+      restoreInitialSpinner();
     }
 
     const stateName = STATE_NAMES[stateCode] || stateCode;
@@ -1409,10 +1467,7 @@ const state = {
     state.yAxisZero = params.yaxis === 'zero';
     dom.stateSelect.value = params.state;
 
-    if (state.yAxisZero) {
-      dom.btnToggleYLabel.textContent = 'Y-Axis: Zero';
-      dom.btnToggleY.classList.add('active');
-    }
+    setYAxisLabel();
 
     document
       .getElementById('btnBoth')
@@ -1586,8 +1641,16 @@ const state = {
       e.preventDefault();
       if (next === state.activePointIndex) return;
       state.activePointIndex = next;
+      // Keep the stepped-to point on screen: slide the window rather than walking the marker
+      // off its edge (Home at 2Y used to change the cards while the chart sat still).
+      const chart = state.chartInstance;
+      const win = windowIncludingIndex(chart.scales.x.min, chart.scales.x.max, next, last + 1);
+      if (win) {
+        chart.zoomScale('x', win, 'none');
+        handleManualZoom({ chart });
+      }
       updateInfoCards(next, true);
-      state.chartInstance.update('none');
+      chart.update('none');
     });
 
     // Theme toggle

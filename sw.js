@@ -27,6 +27,7 @@ const SHELL_ASSETS = [
   '/modules/overlay.js',
   '/modules/quality.js',
   '/modules/range.js',
+  '/modules/ranking.js',
   '/modules/stateSearch.js',
   '/modules/urlState.js',
   '/modules/view.js',

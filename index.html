@@ -280,9 +280,11 @@
                     </select>
                     <span class="controls-divider"></span>
                     <div class="controls-views">
-                        <button class="btn btn-primary active" id="btnBoth">Compare Both</button>
-                        <button class="btn btn-secondary" id="btnSingle">Single Earner</button>
-                        <button class="btn btn-secondary" id="btnHousehold">Dual Income (1.4×)</button>
+                        <!-- One wrapper span per label: at <=768px these buttons are flex containers, and bare
+                             text + .hide-narrow spans would become separate flex items and lose their spaces. -->
+                        <button class="btn btn-primary active" id="btnBoth" aria-pressed="true"><span><span class="hide-narrow">Compare </span>Both</span></button>
+                        <button class="btn btn-secondary" id="btnSingle" aria-pressed="false"><span>Single<span class="hide-narrow"> Earner</span></span></button>
+                        <button class="btn btn-secondary" id="btnHousehold" aria-pressed="false"><span>Dual<span class="hide-narrow"> Income</span> (1.4×)</span></button>
                     </div>
                     <button class="btn btn-secondary btn-reset-filters" id="btnResetFilters" hidden>Reset Filters</button>
                 </div>
@@ -291,16 +293,16 @@
                     <div class="date-range-controls">
                         <div class="date-range-header">
                             <div class="date-range-buttons">
-                                <button class="btn btn-secondary btn-small" data-range="1y">1Y</button>
-                                <button class="btn btn-secondary btn-small active" data-range="2y">2Y</button>
-                                <button class="btn btn-secondary btn-small" data-range="5y">5Y</button>
-                                <button class="btn btn-secondary btn-small" data-range="all">All</button>
+                                <button class="btn btn-secondary btn-small" data-range="1y" aria-pressed="false">1Y</button>
+                                <button class="btn btn-secondary btn-small active" data-range="2y" aria-pressed="true">2Y</button>
+                                <button class="btn btn-secondary btn-small" data-range="5y" aria-pressed="false">5Y</button>
+                                <button class="btn btn-secondary btn-small" data-range="all" aria-pressed="false">All</button>
                             </div>
                             <div class="action-buttons">
                                 <button class="btn btn-secondary btn-small btn-action" id="btnToggleTable"
                                     aria-label="View data as a table"
                                     aria-pressed="false">
-                                    <svg class="btn-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+                                    <svg class="btn-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18v14H3zM3 10h18M9 5v14"/></svg>
                                     <span class="btn-label" id="btnToggleTableLabel">View as Table</span>
                                 </button>
                                 <button class="btn btn-secondary btn-small btn-action active" id="btnToggleEvents"
@@ -310,7 +312,8 @@
                                     <span class="btn-label">Events</span>
                                 </button>
                                 <button class="btn btn-secondary btn-small btn-action" id="btnToggleY"
-                                    aria-label="Toggle Y-Axis origin">
+                                    aria-label="Start Y-axis at zero"
+                                    aria-pressed="false">
                                     <svg class="btn-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v18M4 21h17M9 17V8m5 9v-5m5 5V5"/></svg>
                                     <span class="btn-label" id="btnToggleYLabel">Y-Axis: Auto</span>
                                 </button>

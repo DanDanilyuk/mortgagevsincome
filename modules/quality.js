@@ -17,3 +17,13 @@ export const estimationBadge = (isFieldEstimated, isInterpolated) => {
   if (isInterpolated) return { active: true, label: 'Interpolated' };
   return { active: false, label: '' };
 };
+
+// Horizontal extent of the amber "estimated" tint: from the first estimated point to the right
+// edge of the plot, clipped to the plot. null when there is nothing to paint - the tail is
+// panned off to the right. Unclipped, a zoom into the tail tinted the y-axis labels (the point
+// sits far left of the plot) and a pan away tinted the gutter right of it.
+export const estimatedRegionSpan = (startX, plotLeft, plotRight) => {
+  const x = Math.max(startX, plotLeft);
+  if (!(x < plotRight)) return null;
+  return { x, width: plotRight - x };
+};

@@ -5,6 +5,8 @@ import {
   rangeEdgeIndices,
   clampedRangeIndices,
   clampIndexRange,
+  windowIncludingIndex,
+  manualWindow,
 } from '../../modules/range.js';
 
 // A daily-ish series spanning 2018-01-01 .. 2025-01-01 (sparse: year boundaries).
@@ -110,5 +112,52 @@ describe('clampIndexRange', () => {
 
   it('never returns end before start', () => {
     assert.deepEqual(clampIndexRange(50.2, 50.8, 100), { start: 51, end: 51 });
+  });
+});
+
+describe('windowIncludingIndex', () => {
+  it('returns null when the index is already on screen (edges included)', () => {
+    assert.equal(windowIncludingIndex(417, 521, 500, 522), null);
+    assert.equal(windowIncludingIndex(417, 521, 417, 522), null);
+    assert.equal(windowIncludingIndex(417, 521, 521, 522), null);
+  });
+
+  it('slides left just far enough to put the index on the left edge', () => {
+    assert.deepEqual(windowIncludingIndex(417, 521, 416, 522), { min: 416, max: 520 });
+  });
+
+  it('jumps to the start of the data for the first index, keeping the width', () => {
+    assert.deepEqual(windowIncludingIndex(417, 521, 0, 522), { min: 0, max: 104 });
+  });
+
+  it('slides right just far enough to put the index on the right edge', () => {
+    assert.deepEqual(windowIncludingIndex(0, 104, 110, 522), { min: 6, max: 110 });
+  });
+
+  it('jumps to the end of the data for the last index', () => {
+    assert.deepEqual(windowIncludingIndex(0, 104, 521, 522), { min: 417, max: 521 });
+  });
+
+  it('treats an index cut off by a fractional edge as off screen', () => {
+    assert.deepEqual(windowIncludingIndex(416.5, 520.5, 416, 522), { min: 416, max: 520 });
+  });
+});
+
+describe('manualWindow', () => {
+  it('is null when the chart shows exactly what the named range selects', () => {
+    // 5y on this series is indices 2..7.
+    assert.equal(manualWindow(items, '5y', minDate, maxDate, 2, 7), null);
+  });
+
+  it('is null after zooming all the way back out on the all range', () => {
+    assert.equal(manualWindow(items, 'all', minDate, maxDate, 0, 7), null);
+  });
+
+  it('returns the on-screen window when it differs from the named range', () => {
+    assert.deepEqual(manualWindow(items, '5y', minDate, maxDate, 3, 6), { start: 3, end: 6 });
+  });
+
+  it('rounds a fractional zoom window inward', () => {
+    assert.deepEqual(manualWindow(items, 'all', minDate, maxDate, 0.4, 5.6), { start: 1, end: 5 });
   });
 });

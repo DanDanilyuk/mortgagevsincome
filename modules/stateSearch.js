@@ -24,3 +24,16 @@ export const filterStates = (items, query) => {
     .sort((a, b) => a.r - b.r || a.i - b.i)
     .map(x => x.item);
 };
+
+// Option index an ArrowDown (direction 1) / ArrowUp (direction -1) moves the highlight to, or
+// -1 for an empty list. With nothing highlighted yet (activeIdx -1) the move starts beside the
+// committed option at `anchorIdx`, so arrowing through the freshly opened list continues from
+// the current state; with no anchor (-1, e.g. a typed filter) down starts at the first option
+// and up at the last.
+export const stepOptionIndex = (direction, activeIdx, anchorIdx, count) => {
+  if (count <= 0) return -1;
+  const from = activeIdx >= 0 ? activeIdx : anchorIdx;
+  if (direction > 0) return Math.min(from + 1, count - 1);
+  if (from === -1) return count - 1;
+  return Math.max(from - 1, 0);
+};

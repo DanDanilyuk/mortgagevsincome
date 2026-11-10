@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { filterStates } from '../../modules/stateSearch.js';
+import { filterStates, stepOptionIndex } from '../../modules/stateSearch.js';
 
 const items = [
   { code: 'ALL', name: 'U.S.A', aliases: ['us', 'united states'] },
@@ -51,5 +51,36 @@ describe('filterStates', () => {
 
   it('returns an empty list when nothing matches', () => {
     assert.deepEqual(filterStates(items, 'zzz'), []);
+  });
+});
+
+describe('stepOptionIndex', () => {
+  it('moves down and up one option from the highlighted one', () => {
+    assert.equal(stepOptionIndex(1, 2, -1, 5), 3);
+    assert.equal(stepOptionIndex(-1, 2, -1, 5), 1);
+  });
+
+  it('stops at the ends of the list', () => {
+    assert.equal(stepOptionIndex(1, 4, -1, 5), 4);
+    assert.equal(stepOptionIndex(-1, 0, -1, 5), 0);
+  });
+
+  it('starts at the first option going down and the last going up when nothing is highlighted', () => {
+    assert.equal(stepOptionIndex(1, -1, -1, 5), 0);
+    assert.equal(stepOptionIndex(-1, -1, -1, 5), 4);
+  });
+
+  it('starts beside the committed option when nothing is highlighted yet', () => {
+    assert.equal(stepOptionIndex(1, -1, 2, 5), 3);
+    assert.equal(stepOptionIndex(-1, -1, 2, 5), 1);
+  });
+
+  it('ignores the committed option once something is highlighted', () => {
+    assert.equal(stepOptionIndex(1, 0, 3, 5), 1);
+  });
+
+  it('returns -1 for an empty list', () => {
+    assert.equal(stepOptionIndex(1, -1, -1, 0), -1);
+    assert.equal(stepOptionIndex(-1, -1, -1, 0), -1);
   });
 });
