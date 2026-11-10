@@ -5685,7 +5685,7 @@
       "home_price": 246377,
       "mortgage_rate": "7.28",
       "observed": false,
-      "cpi": 336.298,
+      "cpi": 337.476,
       "estimated": true,
       "estimation_details": {
         "price_estimated": true,
@@ -5702,7 +5702,7 @@
       "home_price": 246470,
       "mortgage_rate": "7.40",
       "observed": false,
-      "cpi": 336.298,
+      "cpi": 337.476,
       "estimated": true,
       "estimation_details": {
         "price_estimated": true,
@@ -5719,7 +5719,7 @@
       "home_price": 246562,
       "mortgage_rate": "7.40",
       "observed": false,
-      "cpi": 336.298,
+      "cpi": 337.476,
       "estimated": true,
       "estimation_details": {
         "price_estimated": true,
@@ -5736,7 +5736,7 @@
       "home_price": 246655,
       "mortgage_rate": "7.32",
       "observed": false,
-      "cpi": 336.298,
+      "cpi": 337.476,
       "estimated": true,
       "estimation_details": {
         "price_estimated": true,
@@ -5753,7 +5753,7 @@
       "home_price": 246747,
       "mortgage_rate": "7.24",
       "observed": false,
-      "cpi": 336.298,
+      "cpi": 337.476,
       "estimated": true,
       "estimation_details": {
         "price_estimated": true,
@@ -5770,7 +5770,7 @@
       "home_price": 246840,
       "mortgage_rate": "7.18",
       "observed": false,
-      "cpi": 336.298,
+      "cpi": 337.476,
       "estimated": true,
       "estimation_details": {
         "price_estimated": true,
@@ -11465,7 +11465,7 @@
       "home_price": 246377,
       "mortgage_rate": "7.28",
       "observed": false,
-      "cpi": 336.298,
+      "cpi": 337.476,
       "estimated": true,
       "estimation_details": {
         "price_estimated": true,
@@ -11482,7 +11482,7 @@
       "home_price": 246470,
       "mortgage_rate": "7.40",
       "observed": false,
-      "cpi": 336.298,
+      "cpi": 337.476,
       "estimated": true,
       "estimation_details": {
         "price_estimated": true,
@@ -11499,7 +11499,7 @@
       "home_price": 246562,
       "mortgage_rate": "7.40",
       "observed": false,
-      "cpi": 336.298,
+      "cpi": 337.476,
       "estimated": true,
       "estimation_details": {
         "price_estimated": true,
@@ -11516,7 +11516,7 @@
       "home_price": 246655,
       "mortgage_rate": "7.32",
       "observed": false,
-      "cpi": 336.298,
+      "cpi": 337.476,
       "estimated": true,
       "estimation_details": {
         "price_estimated": true,
@@ -11533,7 +11533,7 @@
       "home_price": 246747,
       "mortgage_rate": "7.24",
       "observed": false,
-      "cpi": 336.298,
+      "cpi": 337.476,
       "estimated": true,
       "estimation_details": {
         "price_estimated": true,
@@ -11550,7 +11550,7 @@
       "home_price": 246840,
       "mortgage_rate": "7.18",
       "observed": false,
-      "cpi": 336.298,
+      "cpi": 337.476,
       "estimated": true,
       "estimation_details": {
         "price_estimated": true,
@@ -11560,7 +11560,7 @@
     }
   ],
   "metadata": {
-    "generated_at": "2026-11-06T15:33:10-05:00",
+    "generated_at": "2026-11-10T15:59:47-05:00",
     "state": "OH",
     "state_name": "Ohio",
     "frequency": "weekly_thursday_aligned",
