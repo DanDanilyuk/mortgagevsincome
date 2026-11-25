@@ -2,17 +2,6 @@
   "single_costs": [
     {
       "type": "single",
-      "date": "2016-11-23",
-      "total_cost": 226510,
-      "single_income": 38560,
-      "cost_to_income": "5.87",
-      "home_price": 131315,
-      "mortgage_rate": "4.03",
-      "observed": true,
-      "cpi": 242.026
-    },
-    {
-      "type": "single",
       "date": "2016-12-01",
       "total_cost": 229082,
       "single_income": 38577,
@@ -5783,20 +5772,26 @@
         "rate_estimated": false,
         "income_estimated": true
       }
+    },
+    {
+      "type": "single",
+      "date": "2026-11-25",
+      "total_cost": 628263,
+      "single_income": 56918,
+      "cost_to_income": "11.04",
+      "home_price": 256845,
+      "mortgage_rate": "7.21",
+      "observed": false,
+      "cpi": 337.476,
+      "estimated": true,
+      "estimation_details": {
+        "price_estimated": true,
+        "rate_estimated": false,
+        "income_estimated": true
+      }
     }
   ],
   "household_costs": [
-    {
-      "type": "household",
-      "date": "2016-11-23",
-      "total_cost": 226510,
-      "household_income": 53984,
-      "cost_to_income": "4.20",
-      "home_price": 131315,
-      "mortgage_rate": "4.03",
-      "observed": true,
-      "cpi": 242.026
-    },
     {
       "type": "household",
       "date": "2016-12-01",
@@ -11569,29 +11564,46 @@
         "rate_estimated": false,
         "income_estimated": true
       }
+    },
+    {
+      "type": "household",
+      "date": "2026-11-25",
+      "total_cost": 628263,
+      "household_income": 79685,
+      "cost_to_income": "7.88",
+      "home_price": 256845,
+      "mortgage_rate": "7.21",
+      "observed": false,
+      "cpi": 337.476,
+      "estimated": true,
+      "estimation_details": {
+        "price_estimated": true,
+        "rate_estimated": false,
+        "income_estimated": true
+      }
     }
   ],
   "metadata": {
-    "generated_at": "2026-11-19T17:25:31-05:00",
+    "generated_at": "2026-11-25T18:16:08-05:00",
     "state": "IN",
     "state_name": "Indiana",
     "frequency": "weekly_thursday_aligned",
     "date_range": {
-      "start": "2016-11-23",
-      "end": "2026-11-19",
+      "start": "2016-12-01",
+      "end": "2026-11-25",
       "last_actual_home_price": "2026-10-01",
       "last_actual_income": "2026-10-01"
     },
     "counts": {
       "total": 522,
-      "actual": 515,
-      "estimated": 7,
-      "income_estimated": 7
+      "actual": 514,
+      "estimated": 8,
+      "income_estimated": 8
     },
     "series_quality": {
-      "observed": 120,
+      "observed": 119,
       "interpolated": 399,
-      "extrapolated": 3
+      "extrapolated": 4
     },
     "data_sources": {
       "bls_series": "CES0500000011",
